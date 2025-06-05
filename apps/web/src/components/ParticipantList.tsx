@@ -54,15 +54,26 @@ interface ParticipantItemProps {
 
 function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
   const [isLeaving] = useState(false)
+  const [timeAgo, setTimeAgo] = useState<string>('')
   
-  const getTimeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
-    if (seconds < 60) return 'just now'
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    return `${hours}h ago`
-  }
+  useEffect(() => {
+    const getTimeAgo = (date: Date) => {
+      const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
+      if (seconds < 60) return 'just now'
+      const minutes = Math.floor(seconds / 60)
+      if (minutes < 60) return `${minutes}m ago`
+      const hours = Math.floor(minutes / 60)
+      return `${hours}h ago`
+    }
+    
+    setTimeAgo(getTimeAgo(participant.joinedAt))
+    
+    const interval = setInterval(() => {
+      setTimeAgo(getTimeAgo(participant.joinedAt))
+    }, 60000) // Update every minute
+    
+    return () => clearInterval(interval)
+  }, [participant.joinedAt])
 
   return (
     <Box
@@ -99,7 +110,7 @@ function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
             {participant.id}
           </Text>
           <Text fontSize="xs" color="gray.500">
-            Joined {getTimeAgo(participant.joinedAt)}
+            {timeAgo && `Joined ${timeAgo}`}
           </Text>
         </Box>
         {isNew && (
