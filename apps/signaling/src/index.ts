@@ -1,4 +1,4 @@
-import express from 'express'
+import express, { Request, Response, NextFunction, RequestHandler } from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
@@ -32,12 +32,12 @@ interface Room {
 const rooms = new Map<string, Room>()
 
 // REST API endpoints
-app.get('/health', (req, res) => {
+app.get('/health', ((req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
-})
+}) as RequestHandler)
 
 // Create a new room
-app.post('/api/rooms', (req, res) => {
+app.post('/api/rooms', ((req, res) => {
   const roomId = uuidv4()
   const room: Room = {
     id: roomId,
@@ -46,10 +46,10 @@ app.post('/api/rooms', (req, res) => {
   }
   rooms.set(roomId, room)
   res.json({ roomId })
-})
+}) as RequestHandler)
 
 // Get room info
-app.get('/api/rooms/:roomId', (req, res) => {
+app.get('/api/rooms/:roomId', ((req, res) => {
   const { roomId } = req.params
   const room = rooms.get(roomId)
   
@@ -62,7 +62,21 @@ app.get('/api/rooms/:roomId', (req, res) => {
     participants: Array.from(room.participants),
     createdAt: room.createdAt
   })
-})
+}) as RequestHandler)
+
+// 404 handler - must be before error handler
+app.use(((req, res) => {
+  res.status(404).json({ error: 'Not found' })
+}) as RequestHandler)
+
+// Error handling middleware (Express 5 requires 4 parameters)
+app.use(((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('Error:', err.stack)
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  })
+}) as express.ErrorRequestHandler)
 
 // WebSocket handling for real-time signaling
 io.on('connection', (socket) => {
@@ -123,9 +137,11 @@ io.on('connection', (socket) => {
   })
 })
 
-// Start server
-httpServer.listen(PORT, () => {
-  console.log(`Signaling server running on http://localhost:${PORT}`)
-})
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  httpServer.listen(PORT, () => {
+    console.log(`Signaling server running on http://localhost:${PORT}`)
+  })
+}
 
 export { app, httpServer }
