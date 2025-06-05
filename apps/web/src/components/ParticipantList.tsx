@@ -11,37 +11,40 @@ import {
 } from '@chakra-ui/react'
 import { useWebRTC } from '@/contexts/WebRTCContext'
 import { useEffect, useState } from 'react'
+import { Global } from '@emotion/react'
 
-const slideIn = `@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
+const animationStyles = `
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}`
 
-const slideOut = `@keyframes slideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
+  @keyframes slideOut {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(20px);
+    }
   }
-  to {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-}`
 
-const bounce = `@keyframes bounce {
-  0%, 100% {
-    transform: scale(1);
+  @keyframes bounce {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
   }
-  50% {
-    transform: scale(1.05);
-  }
-}`
+`
 
 interface ParticipantItemProps {
   participant: {
@@ -157,15 +160,16 @@ export function ParticipantList() {
   if (!currentRoom) return null
 
   return (
-    <Box
-      p={6}
-      borderWidth="1px"
-      borderRadius="lg"
-      borderColor="gray.200"
-      bg="white"
-      shadow="sm"
-      css={`${slideIn} ${slideOut} ${bounce}`}
-    >
+    <>
+      <Global styles={animationStyles} />
+      <Box
+        p={6}
+        borderWidth="1px"
+        borderRadius="lg"
+        borderColor="gray.200"
+        bg="white"
+        shadow="sm"
+      >
       <Stack direction="row" justify="space-between" mb={4}>
         <Box>
           <Text fontSize="xl" fontWeight="bold">
@@ -250,6 +254,7 @@ export function ParticipantList() {
         </Stack>
         </Collapsible.Content>
       </Collapsible.Root>
-    </Box>
+      </Box>
+    </>
   )
 }

@@ -2,38 +2,7 @@
 
 import { Box, Text } from '@chakra-ui/react'
 import { useWebRTC } from '@/contexts/WebRTCContext'
-
-const pulse = `@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(66, 153, 225, 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(66, 153, 225, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(66, 153, 225, 0);
-  }
-}`
-
-const rotate = `@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}`
-
-const fadeIn = `@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}`
+import { Global } from '@emotion/react'
 
 interface StatusIconProps {
   status: 'disconnected' | 'connecting' | 'connected' | 'error'
@@ -75,6 +44,40 @@ function StatusIcon({ status }: StatusIconProps) {
   )
 }
 
+const animationStyles = `
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(66, 153, 225, 0.5);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(66, 153, 225, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(66, 153, 225, 0);
+    }
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`
+
 export function ConnectionStatus() {
   const { connectionStatus, error, currentRoom, participants } = useWebRTC()
 
@@ -86,16 +89,17 @@ export function ConnectionStatus() {
   }
 
   return (
-    <Box
-      p={4}
-      borderWidth="1px"
-      borderRadius="lg"
-      borderColor="gray.200"
-      bg="white"
-      shadow="sm"
-      animation={`fadeIn 0.5s ease-out`}
-      css={`${pulse} ${rotate} ${fadeIn}`}
-    >
+    <>
+      <Global styles={animationStyles} />
+      <Box
+        p={4}
+        borderWidth="1px"
+        borderRadius="lg"
+        borderColor="gray.200"
+        bg="white"
+        shadow="sm"
+        animation={`fadeIn 0.5s ease-out`}
+      >
       <Box display="flex" alignItems="center" mb={2}>
         <StatusIcon status={connectionStatus} />
         <Text fontWeight="semibold" fontSize="lg">
@@ -119,6 +123,7 @@ export function ConnectionStatus() {
           </Text>
         </Box>
       )}
-    </Box>
+      </Box>
+    </>
   )
 }
