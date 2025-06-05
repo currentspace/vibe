@@ -89,6 +89,9 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.1.0(react@19.1.0)
+      socket.io-client:
+        specifier: ^4.8.1
+        version: 4.8.1
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3
@@ -4396,7 +4399,7 @@ snapshots:
       sirv: 3.0.1
       tinyglobby: 0.2.14
       tinyrainbow: 2.0.0
-      vitest: 3.2.1(@types/node@22.15.29)(@vitest/ui@3.2.1)(jsdom@26.1.0)(tsx@4.19.4)
+      vitest: 3.2.1(@types/node@20.17.57)(@vitest/ui@3.2.1)(jsdom@26.1.0)(tsx@4.19.4)
 
   '@vitest/utils@3.2.1':
     dependencies:
