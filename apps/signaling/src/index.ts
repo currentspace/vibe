@@ -39,9 +39,9 @@ app.get('/health', ((req, res) => {
 // Create a new room
 app.post('/api/rooms', ((req, res) => {
   const roomId = uuidv4()
-  const room: Room = {
+  const room = {
     id: roomId,
-    participants: new Set(),
+    participants: new Set<string>(),
     createdAt: new Date()
   }
   rooms.set(roomId, room)

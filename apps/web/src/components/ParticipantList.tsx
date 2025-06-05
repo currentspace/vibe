@@ -57,7 +57,7 @@ interface ParticipantItemProps {
 
 function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
   const [isLeaving] = useState(false)
-  const [timeAgo, setTimeAgo] = useState<string>('')
+  const [timeAgo, setTimeAgo] = useState('')
   
   useEffect(() => {
     const getTimeAgo = (date: Date) => {
