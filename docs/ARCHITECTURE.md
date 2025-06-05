@@ -55,7 +55,7 @@ apps/web/
 #### 2. Signaling Server (`apps/signaling`)
 
 **Technology Stack:**
-- Express 4.x
+- Express 5.x
 - Socket.io 4.x for WebSocket communication
 - TypeScript 5.x
 - UUID for room generation

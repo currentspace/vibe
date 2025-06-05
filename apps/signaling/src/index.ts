@@ -1,11 +1,24 @@
+/**
+ * WebRTC Signaling Server
+ * 
+ * This server facilitates WebRTC peer connections by handling signaling
+ * between clients. It manages rooms and relays connection information
+ * but does not handle media streams directly.
+ * 
+ * @module SignalingServer
+ */
+
 import express, { Request, Response, NextFunction, RequestHandler } from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { v4 as uuidv4 } from 'uuid'
+import { setupApiDocs } from './api-docs'
 
 const app = express()
 const httpServer = createServer(app)
+
+// Configure Socket.IO with CORS
 const io = new Server(httpServer, {
   cors: {
     origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
@@ -22,21 +35,42 @@ app.use(cors({
 }))
 app.use(express.json())
 
-// Store active rooms and their participants
+// Setup API documentation (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  setupApiDocs(app)
+}
+
+/**
+ * Room data structure for managing WebRTC sessions
+ */
 interface Room {
+  /** Unique room identifier (UUID v4) */
   id: string
+  /** Set of participant user IDs currently in the room */
   participants: Set<string>
+  /** Timestamp when the room was created */
   createdAt: Date
 }
 
+/** In-memory storage for active rooms */
 const rooms = new Map<string, Room>()
 
-// REST API endpoints
+// ==================== REST API Endpoints ====================
+
+/**
+ * Health check endpoint
+ * @route GET /health
+ * @returns {Object} Server status and current timestamp
+ */
 app.get('/health', ((req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 }) as RequestHandler)
 
-// Create a new room
+/**
+ * Create a new room for WebRTC session
+ * @route POST /api/rooms
+ * @returns {Object} Created room ID
+ */
 app.post('/api/rooms', ((req, res) => {
   const roomId = uuidv4()
   const room = {
@@ -48,7 +82,13 @@ app.post('/api/rooms', ((req, res) => {
   res.json({ roomId })
 }) as RequestHandler)
 
-// Get room info
+/**
+ * Get room information by ID
+ * @route GET /api/rooms/:roomId
+ * @param {string} roomId - Room ID to retrieve
+ * @returns {Object} Room details including participants
+ * @returns {404} If room not found
+ */
 app.get('/api/rooms/:roomId', ((req, res) => {
   const { roomId } = req.params
   const room = rooms.get(roomId)
@@ -64,12 +104,17 @@ app.get('/api/rooms/:roomId', ((req, res) => {
   })
 }) as RequestHandler)
 
-// 404 handler - must be before error handler
+/**
+ * 404 handler for unmatched routes
+ */
 app.use(((req, res) => {
   res.status(404).json({ error: 'Not found' })
 }) as RequestHandler)
 
-// Error handling middleware (Express 5 requires 4 parameters)
+/**
+ * Global error handling middleware
+ * Logs errors and returns appropriate error response
+ */
 app.use(((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Error:', err.stack)
   res.status(500).json({ 
@@ -78,11 +123,20 @@ app.use(((err: Error, req: Request, res: Response, next: NextFunction) => {
   })
 }) as express.ErrorRequestHandler)
 
-// WebSocket handling for real-time signaling
+// ==================== WebSocket Event Handlers ====================
+
+/**
+ * Handle WebSocket connections for real-time signaling
+ */
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`)
   
-  // Join a room
+  /**
+   * Handle room join request
+   * @event join-room
+   * @param {string} roomId - Room to join
+   * @param {string} userId - User identifier
+   */
   socket.on('join-room', (roomId: string, userId: string) => {
     const room = rooms.get(roomId)
     if (!room) {
@@ -104,7 +158,12 @@ io.on('connection', (socket) => {
     console.log(`User ${userId} joined room ${roomId}`)
   })
   
-  // Leave a room
+  /**
+   * Handle room leave request
+   * @event leave-room
+   * @param {string} roomId - Room to leave
+   * @param {string} userId - User identifier
+   */
   socket.on('leave-room', (roomId: string, userId: string) => {
     const room = rooms.get(roomId)
     if (room) {
@@ -119,19 +178,49 @@ io.on('connection', (socket) => {
     }
   })
   
-  // WebRTC signaling
+  /**
+   * Relay WebRTC offer to target peer
+   * @event offer
+   * @param {Object} data - Offer data
+   * @param {string} data.roomId - Room ID
+   * @param {string} data.userId - Sender user ID
+   * @param {string} data.targetUserId - Target user ID
+   * @param {RTCSessionDescriptionInit} data.offer - WebRTC offer
+   */
   socket.on('offer', ({ roomId, userId, targetUserId, offer }) => {
     socket.to(roomId).emit('offer', { userId, targetUserId, offer })
   })
   
+  /**
+   * Relay WebRTC answer to target peer
+   * @event answer
+   * @param {Object} data - Answer data
+   * @param {string} data.roomId - Room ID
+   * @param {string} data.userId - Sender user ID
+   * @param {string} data.targetUserId - Target user ID
+   * @param {RTCSessionDescriptionInit} data.answer - WebRTC answer
+   */
   socket.on('answer', ({ roomId, userId, targetUserId, answer }) => {
     socket.to(roomId).emit('answer', { userId, targetUserId, answer })
   })
   
+  /**
+   * Relay ICE candidate to target peer
+   * @event ice-candidate
+   * @param {Object} data - ICE candidate data
+   * @param {string} data.roomId - Room ID
+   * @param {string} data.userId - Sender user ID
+   * @param {string} data.targetUserId - Target user ID
+   * @param {RTCIceCandidateInit} data.candidate - ICE candidate
+   */
   socket.on('ice-candidate', ({ roomId, userId, targetUserId, candidate }) => {
     socket.to(roomId).emit('ice-candidate', { userId, targetUserId, candidate })
   })
   
+  /**
+   * Handle client disconnection
+   * @event disconnect
+   */
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`)
   })

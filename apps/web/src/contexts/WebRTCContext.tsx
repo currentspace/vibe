@@ -1,22 +1,49 @@
+/**
+ * WebRTC Context Provider
+ * 
+ * This context manages the WebRTC connection state, room management,
+ * and signaling server communication. It provides the core functionality
+ * for establishing peer-to-peer connections.
+ * 
+ * @module WebRTCContext
+ */
+
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import { io, Socket } from 'socket.io-client'
 
+/**
+ * Participant in a WebRTC room
+ */
 interface Participant {
+  /** Unique identifier for the participant */
   id: string
+  /** Timestamp when the participant joined */
   joinedAt: Date
 }
 
+/**
+ * WebRTC context value interface
+ */
 interface WebRTCContextType {
+  /** Socket.io connection instance */
   socket: Socket | null
+  /** Whether connected to signaling server */
   isConnected: boolean
+  /** Current room ID if joined */
   currentRoom: string | null
+  /** List of other participants in the room */
   participants: Participant[]
+  /** Current connection status */
   connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error'
+  /** Error message if any */
   error: string | null
+  /** Create a new room and return its ID */
   createRoom: () => Promise<string>
+  /** Join an existing room by ID */
   joinRoom: (roomId: string) => void
+  /** Leave the current room */
   leaveRoom: () => void
 }
 
@@ -81,6 +108,11 @@ export function WebRTCProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /**
+   * Create a new room on the signaling server
+   * @returns {Promise<string>} The created room ID
+   * @throws {Error} If room creation fails
+   */
   const createRoom = useCallback(async (): Promise<string> => {
     try {
       const response = await fetch(`${SIGNALING_URL}/api/rooms`, {
@@ -95,6 +127,10 @@ export function WebRTCProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /**
+   * Join an existing room
+   * @param {string} roomId - The room ID to join
+   */
   const joinRoom = useCallback((roomId: string) => {
     if (!socket || !isConnected) {
       setError('Not connected to signaling server')
@@ -105,6 +141,10 @@ export function WebRTCProvider({ children }: { children: ReactNode }) {
     setCurrentRoom(roomId)
   }, [socket, isConnected, userId])
 
+  /**
+   * Leave the current room
+   * Notifies other participants and clears local state
+   */
   const leaveRoom = useCallback(() => {
     if (!socket || !currentRoom) return
 
@@ -132,6 +172,11 @@ export function WebRTCProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Hook to access WebRTC context
+ * @returns {WebRTCContextType} The WebRTC context value
+ * @throws {Error} If used outside of WebRTCProvider
+ */
 export function useWebRTC() {
   const context = useContext(WebRTCContext)
   if (!context) {

@@ -1,3 +1,12 @@
+/**
+ * Connection Status Component
+ * 
+ * Displays the current WebRTC connection status with animated indicators
+ * and room information when connected.
+ * 
+ * @module ConnectionStatus
+ */
+
 'use client'
 
 import { Box, Text } from '@chakra-ui/react'
@@ -8,6 +17,11 @@ interface StatusIconProps {
   status: 'disconnected' | 'connecting' | 'connected' | 'error'
 }
 
+/**
+ * Animated status indicator icon
+ * @param {StatusIconProps} props - Component props
+ * @returns {JSX.Element} Status icon with appropriate color and animation
+ */
 function StatusIcon({ status }: StatusIconProps) {
   const configs = {
     disconnected: {
@@ -78,6 +92,11 @@ const animationStyles = `
   }
 `
 
+/**
+ * Main connection status display component
+ * Shows connection state, error messages, and room information
+ * @returns {JSX.Element} Connection status UI
+ */
 export function ConnectionStatus() {
   const { connectionStatus, error, currentRoom, participants } = useWebRTC()
 
