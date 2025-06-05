@@ -2,20 +2,17 @@
 
 import { 
   Box, 
-  VStack, 
-  HStack, 
+  Stack, 
   Text, 
-  Avatar, 
   Badge,
-  keyframes,
-  Collapse,
-  useDisclosure,
+  Collapsible,
   IconButton,
+  Avatar,
 } from '@chakra-ui/react'
 import { useWebRTC } from '@/contexts/WebRTCContext'
 import { useEffect, useState } from 'react'
 
-const slideIn = keyframes`
+const slideIn = `@keyframes slideIn {
   from {
     opacity: 0;
     transform: translateX(-20px);
@@ -24,9 +21,9 @@ const slideIn = keyframes`
     opacity: 1;
     transform: translateX(0);
   }
-`
+}`
 
-const slideOut = keyframes`
+const slideOut = `@keyframes slideOut {
   from {
     opacity: 1;
     transform: translateX(0);
@@ -35,16 +32,16 @@ const slideOut = keyframes`
     opacity: 0;
     transform: translateX(20px);
   }
-`
+}`
 
-const bounce = keyframes`
+const bounce = `@keyframes bounce {
   0%, 100% {
     transform: scale(1);
   }
   50% {
     transform: scale(1.05);
   }
-`
+}`
 
 interface ParticipantItemProps {
   participant: {
@@ -56,7 +53,7 @@ interface ParticipantItemProps {
 }
 
 function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
-  const [isLeaving, setIsLeaving] = useState(false)
+  const [isLeaving] = useState(false)
   
   const getTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
@@ -75,8 +72,8 @@ function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
       borderWidth="1px"
       borderColor="gray.200"
       animation={`
-        ${isNew ? slideIn : 'none'} 0.3s ease-out,
-        ${isLeaving ? slideOut : 'none'} 0.3s ease-out forwards
+        ${isNew ? 'slideIn' : 'none'} 0.3s ease-out,
+        ${isLeaving ? 'slideOut' : 'none'} 0.3s ease-out forwards
       `}
       _hover={{ 
         bg: 'gray.100', 
@@ -88,14 +85,15 @@ function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
         animationDelay: isNew ? `${index * 0.1}s` : '0s'
       }}
     >
-      <HStack spacing={3}>
-        <Avatar
+      <Stack direction="row" gap={3}>
+        <Avatar.Root
           size="sm"
-          name={participant.id}
           bg="blue.500"
           color="white"
-          animation={isNew ? `${bounce} 0.5s ease-out ${index * 0.1 + 0.3}s` : 'none'}
-        />
+          animation={isNew ? `bounce 0.5s ease-out ${index * 0.1 + 0.3}s` : 'none'}
+        >
+          <Avatar.Fallback>{participant.id.charAt(0).toUpperCase()}</Avatar.Fallback>
+        </Avatar.Root>
         <Box flex={1}>
           <Text fontWeight="medium" fontSize="sm">
             {participant.id}
@@ -105,11 +103,11 @@ function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
           </Text>
         </Box>
         {isNew && (
-          <Badge colorScheme="green" fontSize="xs" animation={`${slideIn} 0.5s ease-out`}>
+          <Badge colorScheme="green" fontSize="xs" animation={`slideIn 0.5s ease-out`}>
             NEW
           </Badge>
         )}
-      </HStack>
+      </Stack>
     </Box>
   )
 }
@@ -117,11 +115,12 @@ function ParticipantItem({ participant, isNew, index }: ParticipantItemProps) {
 export function ParticipantList() {
   const { participants, currentRoom } = useWebRTC()
   const [newParticipantIds, setNewParticipantIds] = useState<Set<string>>(new Set())
-  const { isOpen, onToggle } = useDisclosure({ defaultIsOpen: true })
+  const [isOpen, setIsOpen] = useState(true)
+  
+  const onToggle = () => setIsOpen(!isOpen)
 
   useEffect(() => {
     // Mark participants as new when they join
-    const currentIds = new Set(participants.map(p => p.id))
     const newIds = new Set<string>()
     
     participants.forEach(p => {
@@ -142,7 +141,7 @@ export function ParticipantList() {
         })
       }, 3000)
     }
-  }, [participants])
+  }, [participants, newParticipantIds])
 
   if (!currentRoom) return null
 
@@ -154,8 +153,9 @@ export function ParticipantList() {
       borderColor="gray.200"
       bg="white"
       shadow="sm"
+      css={`${slideIn} ${slideOut} ${bounce}`}
     >
-      <HStack justify="space-between" mb={4}>
+      <Stack direction="row" justify="space-between" mb={4}>
         <Box>
           <Text fontSize="xl" fontWeight="bold">
             Participants
@@ -166,24 +166,24 @@ export function ParticipantList() {
         </Box>
         <IconButton
           aria-label="Toggle participants"
-          icon={
-            <Box
-              as="span"
-              display="inline-block"
-              transition="transform 0.2s"
-              transform={isOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
-            >
-              ▼
-            </Box>
-          }
           size="sm"
           variant="ghost"
           onClick={onToggle}
-        />
-      </HStack>
+        >
+          <Box
+            as="span"
+            display="inline-block"
+            transition="transform 0.2s"
+            transform={isOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
+          >
+            ▼
+          </Box>
+        </IconButton>
+      </Stack>
 
-      <Collapse in={isOpen} animateOpacity>
-        <VStack spacing={2} align="stretch">
+      <Collapsible.Root open={isOpen}>
+        <Collapsible.Content>
+        <Stack gap={2}>
           {/* Current user */}
           <Box
             p={3}
@@ -192,18 +192,21 @@ export function ParticipantList() {
             borderWidth="1px"
             borderColor="blue.200"
           >
-            <HStack spacing={3}>
-              <Avatar
+            <Stack direction="row" gap={3}>
+              <Avatar.Root
                 size="sm"
                 bg="blue.600"
-                icon={<Text fontSize="xs">YOU</Text>}
-              />
+              >
+                <Avatar.Fallback>
+                  <Text fontSize="xs" color="white">YOU</Text>
+                </Avatar.Fallback>
+              </Avatar.Root>
               <Box flex={1}>
                 <Text fontWeight="medium" fontSize="sm" color="blue.700">
                   You (Host)
                 </Text>
               </Box>
-            </HStack>
+            </Stack>
           </Box>
 
           {/* Other participants */}
@@ -227,14 +230,15 @@ export function ParticipantList() {
               <Box
                 mt={2}
                 display="inline-block"
-                animation={`${bounce} 2s ease-in-out infinite`}
+                animation={`bounce 2s ease-in-out infinite`}
               >
                 👥
               </Box>
             </Box>
           )}
-        </VStack>
-      </Collapse>
+        </Stack>
+        </Collapsible.Content>
+      </Collapsible.Root>
     </Box>
   )
 }

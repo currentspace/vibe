@@ -1,10 +1,10 @@
-import { Container, Heading, Text, Box, Link, VStack, HStack } from '@chakra-ui/react'
+import { Container, Heading, Text, Box, Link, Stack } from '@chakra-ui/react'
 import { Button } from '@/components/Button'
 
 export default function Home() {
   return (
     <Container maxW="container.lg" py={10}>
-      <VStack spacing={8} align="stretch">
+      <Stack gap={8}>
         <Box textAlign="center">
           <Heading size="2xl" mb={4}>
             Vibe App
@@ -18,7 +18,7 @@ export default function Home() {
           <Heading size="lg" mb={4}>
             Tech Stack:
           </Heading>
-          <VStack align="start" spacing={2}>
+          <Stack align="start" gap={2}>
             <Text>✅ React 19.1 with Server Components</Text>
             <Text>✅ Next.js 15 with Turbopack</Text>
             <Text>✅ Node.js 24 runtime</Text>
@@ -28,10 +28,10 @@ export default function Home() {
             <Text>✅ TypeScript + ESLint + Prettier</Text>
             <Text>✅ WebRTC Signaling Server</Text>
             <Text>✅ Socket.io for real-time communication</Text>
-          </VStack>
+          </Stack>
         </Box>
 
-        <HStack spacing={4} justify="center">
+        <Stack direction="row" gap={4} justify="center">
           <Link href="/demo">
             <Button size="lg">View Demo Page</Button>
           </Link>
@@ -40,8 +40,8 @@ export default function Home() {
               WebRTC Connect
             </Button>
           </Link>
-        </HStack>
-      </VStack>
+        </Stack>
+      </Stack>
     </Container>
   )
 }

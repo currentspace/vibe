@@ -1,9 +1,9 @@
 'use client'
 
-import { Box, Text, keyframes, Icon } from '@chakra-ui/react'
+import { Box, Text } from '@chakra-ui/react'
 import { useWebRTC } from '@/contexts/WebRTCContext'
 
-const pulse = keyframes`
+const pulse = `@keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(66, 153, 225, 0.5);
   }
@@ -13,18 +13,18 @@ const pulse = keyframes`
   100% {
     box-shadow: 0 0 0 0 rgba(66, 153, 225, 0);
   }
-`
+}`
 
-const rotate = keyframes`
+const rotate = `@keyframes rotate {
   from {
     transform: rotate(0deg);
   }
   to {
     transform: rotate(360deg);
   }
-`
+}`
 
-const fadeIn = keyframes`
+const fadeIn = `@keyframes fadeIn {
   from {
     opacity: 0;
     transform: translateY(-10px);
@@ -33,7 +33,7 @@ const fadeIn = keyframes`
     opacity: 1;
     transform: translateY(0);
   }
-`
+}`
 
 interface StatusIconProps {
   status: 'disconnected' | 'connecting' | 'connected' | 'error'
@@ -47,11 +47,11 @@ function StatusIcon({ status }: StatusIconProps) {
     },
     connecting: {
       color: 'yellow.500',
-      animation: `${rotate} 2s linear infinite`,
+      animation: `rotate 2s linear infinite`,
     },
     connected: {
       color: 'green.500',
-      animation: `${pulse} 2s infinite`,
+      animation: `pulse 2s infinite`,
     },
     error: {
       color: 'red.500',
@@ -93,7 +93,8 @@ export function ConnectionStatus() {
       borderColor="gray.200"
       bg="white"
       shadow="sm"
-      animation={`${fadeIn} 0.5s ease-out`}
+      animation={`fadeIn 0.5s ease-out`}
+      css={`${pulse} ${rotate} ${fadeIn}`}
     >
       <Box display="flex" alignItems="center" mb={2}>
         <StatusIcon status={connectionStatus} />
@@ -109,7 +110,7 @@ export function ConnectionStatus() {
       )}
 
       {currentRoom && (
-        <Box mt={3} animation={`${fadeIn} 0.5s ease-out 0.2s both`}>
+        <Box mt={3} animation={`fadeIn 0.5s ease-out 0.2s both`}>
           <Text fontSize="sm" color="gray.600">
             Room ID: <Text as="span" fontFamily="mono" fontWeight="medium">{currentRoom}</Text>
           </Text>

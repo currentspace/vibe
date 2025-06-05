@@ -18,7 +18,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 // Mock structuredClone if not available
 if (!global.structuredClone) {
-  global.structuredClone = (val: any) => JSON.parse(JSON.stringify(val))
+  global.structuredClone = (val: unknown) => JSON.parse(JSON.stringify(val))
 }
 
 // Mock Chakra UI's keyframes function
@@ -26,7 +26,7 @@ vi.mock('@chakra-ui/react', async () => {
   const actual = await vi.importActual('@chakra-ui/react')
   return {
     ...actual,
-    keyframes: (strings: TemplateStringsArray, ...args: any[]) => {
+    keyframes: (strings: TemplateStringsArray) => {
       // Return a simple string representation for testing
       return strings.join('')
     }

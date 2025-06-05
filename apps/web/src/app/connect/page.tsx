@@ -1,6 +1,6 @@
 'use client'
 
-import { Container, VStack, Heading, Grid, GridItem } from '@chakra-ui/react'
+import { Container, Stack, Heading, Grid, GridItem } from '@chakra-ui/react'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { RoomManager } from '@/components/RoomManager'
 import { ParticipantList } from '@/components/ParticipantList'
@@ -10,7 +10,7 @@ export default function ConnectPage() {
   return (
     <WebRTCProvider>
       <Container maxW="container.xl" py={10}>
-        <VStack spacing={8} align="stretch">
+        <Stack gap={8}>
           <Heading size="xl" textAlign="center">
             WebRTC Connection Hub
           </Heading>
@@ -20,17 +20,17 @@ export default function ConnectPage() {
             gap={6}
           >
             <GridItem colSpan={{ base: 1, lg: 1 }}>
-              <VStack spacing={4} align="stretch">
+              <Stack gap={4}>
                 <ConnectionStatus />
                 <RoomManager />
-              </VStack>
+              </Stack>
             </GridItem>
             
             <GridItem colSpan={{ base: 1, lg: 2 }}>
               <ParticipantList />
             </GridItem>
           </Grid>
-        </VStack>
+        </Stack>
       </Container>
     </WebRTCProvider>
   )

@@ -3,38 +3,40 @@
 import { useState } from 'react'
 import { 
   Box, 
-  VStack, 
-  HStack, 
+  Stack, 
   Button, 
   Input, 
   Text, 
-  useToast,
-  FormControl,
-  FormLabel,
-  InputGroup,
-  InputRightElement,
-  IconButton,
-  Divider,
-  Fade,
-  ScaleFade,
+  Field,
+  Separator,
+  Toaster,
+  createToaster,
 } from '@chakra-ui/react'
 import { useWebRTC } from '@/contexts/WebRTCContext'
+
+const toaster = createToaster({
+  placement: 'top',
+  pauseOnPageIdle: true,
+})
 
 export function RoomManager() {
   const { createRoom, joinRoom, leaveRoom, currentRoom, isConnected } = useWebRTC()
   const [roomInput, setRoomInput] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
-  const toast = useToast()
+  
+  const showToast = (title: string, description?: string, status: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    toaster.create({
+      title,
+      description,
+      type: status,
+      duration: status === 'error' ? 5000 : 3000,
+    })
+  }
 
   const handleCreateRoom = async () => {
     if (!isConnected) {
-      toast({
-        title: 'Not connected',
-        description: 'Please wait for the connection to establish',
-        status: 'warning',
-        duration: 3000,
-      })
+      showToast('Not connected', 'Please wait for the connection to establish', 'warning')
       return
     }
 
@@ -42,18 +44,9 @@ export function RoomManager() {
     try {
       const roomId = await createRoom()
       joinRoom(roomId)
-      toast({
-        title: 'Room created',
-        description: `Room ID: ${roomId}`,
-        status: 'success',
-        duration: 5000,
-      })
-    } catch (error) {
-      toast({
-        title: 'Failed to create room',
-        status: 'error',
-        duration: 3000,
-      })
+      showToast('Room created', `Room ID: ${roomId}`, 'success')
+    } catch {
+      showToast('Failed to create room', undefined, 'error')
     } finally {
       setIsCreating(false)
     }
@@ -61,22 +54,12 @@ export function RoomManager() {
 
   const handleJoinRoom = () => {
     if (!roomInput.trim()) {
-      toast({
-        title: 'Room ID required',
-        description: 'Please enter a room ID',
-        status: 'warning',
-        duration: 3000,
-      })
+      showToast('Room ID required', 'Please enter a room ID', 'warning')
       return
     }
 
     if (!isConnected) {
-      toast({
-        title: 'Not connected',
-        description: 'Please wait for the connection to establish',
-        status: 'warning',
-        duration: 3000,
-      })
+      showToast('Not connected', 'Please wait for the connection to establish', 'warning')
       return
     }
 
@@ -88,21 +71,13 @@ export function RoomManager() {
 
   const handleLeaveRoom = () => {
     leaveRoom()
-    toast({
-      title: 'Left room',
-      status: 'info',
-      duration: 2000,
-    })
+    showToast('Left room')
   }
 
   const copyRoomId = () => {
     if (currentRoom) {
       navigator.clipboard.writeText(currentRoom)
-      toast({
-        title: 'Room ID copied',
-        status: 'success',
-        duration: 2000,
-      })
+      showToast('Room ID copied', undefined, 'success')
     }
   }
 
@@ -115,52 +90,49 @@ export function RoomManager() {
       bg="white"
       shadow="sm"
     >
-      <VStack spacing={4} align="stretch">
+      <Stack gap={4}>
         <Text fontSize="xl" fontWeight="bold">Room Management</Text>
         
         {!currentRoom ? (
-          <Fade in={!currentRoom}>
-            <VStack spacing={4} align="stretch">
+            <Stack gap={4}>
               <Button
                 colorScheme="blue"
                 size="lg"
                 onClick={handleCreateRoom}
-                isLoading={isCreating}
+                loading={isCreating}
                 loadingText="Creating..."
-                isDisabled={!isConnected}
+                disabled={!isConnected}
                 _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }}
                 transition="all 0.2s"
               >
                 Create New Room
               </Button>
               
-              <Divider />
+              <Separator />
               
-              <FormControl>
-                <FormLabel>Join Existing Room</FormLabel>
-                <HStack>
+              <Field.Root>
+                <Field.Label>Join Existing Room</Field.Label>
+                <Stack direction="row">
                   <Input
                     placeholder="Enter room ID"
                     value={roomInput}
                     onChange={(e) => setRoomInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleJoinRoom()}
-                    isDisabled={!isConnected}
+                    disabled={!isConnected}
                   />
                   <Button
                     colorScheme="green"
                     onClick={handleJoinRoom}
-                    isLoading={isJoining}
-                    isDisabled={!isConnected || !roomInput.trim()}
+                    loading={isJoining}
+                    disabled={!isConnected || !roomInput.trim()}
                   >
                     Join
                   </Button>
-                </HStack>
-              </FormControl>
-            </VStack>
-          </Fade>
+                </Stack>
+              </Field.Root>
+            </Stack>
         ) : (
-          <ScaleFade in={!!currentRoom} initialScale={0.9}>
-            <VStack spacing={4} align="stretch">
+            <Stack gap={4}>
               <Box
                 p={4}
                 borderRadius="md"
@@ -169,7 +141,7 @@ export function RoomManager() {
                 borderColor="blue.200"
               >
                 <Text fontSize="sm" color="gray.600" mb={1}>Current Room</Text>
-                <HStack justify="space-between">
+                <Stack direction="row" justify="space-between">
                   <Text fontFamily="mono" fontSize="lg" fontWeight="bold" color="blue.700">
                     {currentRoom}
                   </Text>
@@ -181,7 +153,7 @@ export function RoomManager() {
                   >
                     Copy ID
                   </Button>
-                </HStack>
+                </Stack>
               </Box>
               
               <Button
@@ -192,10 +164,29 @@ export function RoomManager() {
               >
                 Leave Room
               </Button>
-            </VStack>
-          </ScaleFade>
+            </Stack>
         )}
-      </VStack>
+      </Stack>
     </Box>
+  )
+}
+
+export function RoomManagerWithToaster() {
+  return (
+    <>
+      <RoomManager />
+      <Toaster toaster={toaster}>
+        {(toast) => (
+          <Box
+            p={3}
+            bg={toast.type === 'error' ? 'red.100' : toast.type === 'success' ? 'green.100' : 'blue.100'}
+            borderRadius="md"
+          >
+            <Text fontWeight="medium">{toast.title}</Text>
+            {toast.description && <Text fontSize="sm">{toast.description}</Text>}
+          </Box>
+        )}
+      </Toaster>
+    </>
   )
 }

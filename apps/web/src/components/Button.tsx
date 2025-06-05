@@ -2,7 +2,7 @@
 
 import { Button as ChakraButton, ButtonProps } from '@chakra-ui/react'
 
-interface CustomButtonProps extends ButtonProps {
+interface CustomButtonProps extends Omit<ButtonProps, 'variant'> {
   variant?: 'primary' | 'secondary'
 }
 
