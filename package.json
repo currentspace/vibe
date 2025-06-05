@@ -7,7 +7,7 @@
     "node": ">=23.0.0"
   },
   "scripts": {
-    "dev": "pnpm run --parallel --filter web dev --filter signaling dev",
+    "dev": "pnpm --parallel --filter=web --filter=signaling run dev",
     "dev:web": "pnpm --filter web dev",
     "dev:signaling": "pnpm --filter signaling dev",
     "build": "pnpm -r build",
