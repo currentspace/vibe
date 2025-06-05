@@ -1,0 +1,146 @@
+# Documentation Directory
+
+## Overview
+Comprehensive documentation for the Vibe project including architecture decisions, coding standards, and operational guides.
+
+## Document Index
+
+### README.md
+- Project overview and goals
+- Technology choices and rationale
+- Getting started guide
+- Development workflow
+- Contribution guidelines
+
+### ARCHITECTURE.md
+- High-level system design
+- Component relationships
+- Data flow diagrams
+- Scalability considerations
+- Security architecture
+
+### CODING_STANDARDS.md
+- TypeScript guidelines
+- React/Next.js patterns
+- API design standards
+- Error handling patterns
+- Git commit conventions
+- Code review checklist
+
+### TESTING_STANDARDS.md
+- Testing philosophy
+- Test file organization
+- Unit testing patterns
+- Integration testing approach
+- E2E testing strategy
+- Mock strategies
+
+## Key Concepts Across Documents
+
+### Architecture Principles
+1. **Modularity**: Clear separation of concerns
+2. **Type Safety**: TypeScript everywhere
+3. **Performance**: SSR by default, client-only when needed
+4. **Testability**: Dependency injection, mocking
+5. **Scalability**: Stateless services, horizontal scaling ready
+
+### Code Quality Standards
+- Consistent naming conventions
+- Comprehensive error handling
+- Performance-conscious patterns
+- Accessibility first
+- Security by design
+
+### Testing Philosophy
+- Test behavior, not implementation
+- High value tests over coverage metrics
+- Fast feedback loops
+- Reliable and deterministic
+
+## Documentation Maintenance
+
+### When to Update
+- New patterns established
+- Architecture changes
+- Best practices evolution
+- Lessons learned from incidents
+
+### Review Process
+- Documentation reviewed with code
+- Keep examples current
+- Remove outdated content
+- Ensure consistency across docs
+
+## Quick Reference
+
+### File Naming
+- Components: PascalCase.tsx
+- Utilities: camelCase.ts
+- Tests: component.test.tsx
+- Styles: kebab-case.css
+
+### Import Order
+1. React/Next imports
+2. Third-party libraries
+3. Internal imports (absolute)
+4. Relative imports
+5. Type imports
+
+### Component Structure
+1. Imports
+2. Types/Interfaces
+3. Component function
+4. Hooks at top
+5. Event handlers
+6. Render return
+
+### Git Commits
+```
+type(scope): subject
+
+body
+
+footer
+```
+
+Types: feat, fix, docs, style, refactor, test, chore
+
+## Common Patterns
+
+### Server Components
+```typescript
+// Default - no directive
+async function ServerComponent() {
+  const data = await fetchData()
+  return <div>{data}</div>
+}
+```
+
+### Client Components
+```typescript
+'use client'
+import { useState } from 'react'
+
+function ClientComponent() {
+  const [state, setState] = useState()
+  return <div>{state}</div>
+}
+```
+
+### Error Handling
+```typescript
+try {
+  const result = await operation()
+  return { data: result, error: null }
+} catch (error) {
+  console.error('Operation failed:', error)
+  return { data: null, error: formatError(error) }
+}
+```
+
+## Living Documentation
+These documents evolve with the project. When in doubt:
+1. Check existing patterns in codebase
+2. Consult team for consensus
+3. Update docs with decisions
+4. Ensure team awareness of changes
