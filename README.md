@@ -11,14 +11,18 @@ A modern, real-time video chat application built with React 19, Next.js 15, and 
 - **Monorepo Architecture** - Clean separation of concerns with pnpm workspaces
 - **Type-safe** - Full TypeScript coverage across the entire stack
 - **Well-tested** - Comprehensive test suite with Vitest
+- **HTTP/2 Support** - Optional HTTP/2 support for improved performance
 
 ## 📋 Prerequisites
 
 - Node.js 23.0.0 or higher
 - pnpm 9.15.4 or higher
 - Git
+- [mkcert](https://github.com/FiloSottile/mkcert) (for HTTPS setup)
 
 ## 🛠️ Installation
+
+### 1. Basic Setup
 
 ```bash
 # Clone the repository
@@ -27,14 +31,101 @@ cd vibe
 
 # Install dependencies
 pnpm install
+```
 
-# Run development servers
+### 2. HTTPS Setup (Required for WebRTC)
+
+WebRTC requires secure contexts (HTTPS) to access camera and microphone. Set up local HTTPS using mkcert:
+
+#### Install mkcert
+
+**macOS:**
+```bash
+brew install mkcert
+brew install nss # if you use Firefox
+```
+
+**Windows:**
+```bash
+choco install mkcert
+# or using Scoop
+scoop bucket add extras
+scoop install mkcert
+```
+
+**Linux:**
+```bash
+# Using Homebrew on Linux
+brew install mkcert
+
+# Or download from https://github.com/FiloSottile/mkcert/releases
+# Example for Linux x64:
+wget https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64
+chmod +x mkcert-v1.4.4-linux-amd64
+sudo mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
+```
+
+#### Generate Local Certificates
+
+```bash
+# Install the local CA
+mkcert -install
+
+# Create certificates directory
+mkdir -p certs
+
+# Generate certificates for localhost
+mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem localhost 127.0.0.1 ::1
+
+# The certificates are now in the certs/ directory
+```
+
+### 3. Configure Environment (Optional)
+
+For HTTPS mode, update the environment files:
+
+**apps/web/.env.development:**
+```env
+# Change this line
+NEXT_PUBLIC_SIGNALING_URL=https://localhost:4000
+```
+
+**apps/signaling/.env.development:**
+```env
+# Change this line
+CLIENT_URL=https://localhost:3000
+```
+
+### 4. Run Development Servers
+
+```bash
+# Run with HTTPS enabled (recommended for WebRTC)
+pnpm dev:https
+
+# Or run with HTTP (WebRTC features will be limited)
 pnpm dev
 ```
 
 This will start:
-- Web application at http://localhost:3000
-- Signaling server at http://localhost:4000
+- Web application at https://localhost:3000 (HTTPS) or http://localhost:3000 (HTTP)
+- Signaling server at https://localhost:4000 (HTTPS) or http://localhost:4000 (HTTP)
+- API documentation at https://localhost:4000/api-docs
+
+**Note:** When using HTTPS, your browser may show a security warning. This is normal for local development. Click "Advanced" and "Proceed to localhost" to continue.
+
+### 5. HTTP/2 Support (Enabled by Default)
+
+HTTP/2 is automatically enabled when using HTTPS, providing:
+- Multiplexed streams (multiple requests over single connection)
+- Header compression
+- Server push capabilities
+- Binary protocol (more efficient than text-based HTTP/1.1)
+
+To disable HTTP/2 and use HTTP/1.1 with TLS instead:
+```env
+# In apps/signaling/.env.development
+USE_HTTP2=false
+```
 
 ## 📁 Project Structure
 
@@ -74,8 +165,18 @@ From the root directory:
 ### Development
 ```bash
 pnpm dev              # Run all services in parallel
+pnpm dev:https        # Run all services with HTTPS
+pnpm dev:docker       # Run with Caddy proxy (HTTP/3, simulates Cloudflare)
 pnpm dev:web          # Run only the web application
 pnpm dev:signaling    # Run only the signaling server
+pnpm check:https      # Check HTTPS certificate setup
+```
+
+### Docker Commands
+```bash
+pnpm docker:up        # Start Docker environment
+pnpm docker:down      # Stop Docker environment
+pnpm docker:logs      # View container logs
 ```
 
 ### Building

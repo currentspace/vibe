@@ -8,21 +8,61 @@
  * @module SignalingServer
  */
 
+import 'dotenv/config'
 import express, { Request, Response, NextFunction, RequestHandler } from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
+import { createServer as createHttpsServer } from 'https'
+import { createSecureServer } from 'http2'
 import { Server } from 'socket.io'
 import { v4 as uuidv4 } from 'uuid'
 import { setupApiDocs } from './api-docs'
+import { getHttpsOptions, getProtocol } from './https-config'
 
 const app = express()
+
+// Create HTTP server
 const httpServer = createServer(app)
 
+// Create HTTPS server if certificates are available
+const httpsOptions = getHttpsOptions()
+let httpsServer = null
+
+// Use HTTP/2 if supported, otherwise fall back to HTTPS
+if (httpsOptions) {
+  // Default to HTTP/2 unless explicitly disabled
+  const useHttp2 = process.env.USE_HTTP2 !== 'false'
+  
+  if (useHttp2) {
+    // HTTP/2 requires a compatibility layer for Express
+    httpsServer = createSecureServer({ ...httpsOptions, allowHTTP1: true })
+    httpsServer.on('request', app)
+    console.log('🚀 HTTP/2 support enabled')
+  } else {
+    httpsServer = createHttpsServer(httpsOptions, app)
+    console.log('📡 Using HTTP/1.1 with TLS')
+  }
+}
+
+// Use HTTPS server if available, otherwise fall back to HTTP
+const server = httpsServer || httpServer
+const protocol = getProtocol()
+
 // Configure Socket.IO with CORS
-const io = new Server(httpServer, {
+const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
-    methods: ['GET', 'POST']
+    origin: [
+      'http://localhost:3000', 
+      'http://localhost:3001', 
+      'http://localhost:3002',
+      'https://localhost:3000',
+      'https://localhost:3001',
+      'https://localhost:3002',
+      'https://localhost:9443',
+      'http://localhost:9080'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 })
 
@@ -30,7 +70,16 @@ const PORT = process.env.PORT || 4000
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'https://localhost:3000',
+    'https://localhost:3001',
+    'https://localhost:3002',
+    'https://localhost:9443',
+    'http://localhost:9080'
+  ],
   credentials: true
 }))
 app.use(express.json())
@@ -115,7 +164,7 @@ app.use(((req, res) => {
  * Global error handling middleware
  * Logs errors and returns appropriate error response
  */
-app.use(((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use(((err: Error, req: Request, res: Response, _next: NextFunction) => {
   console.error('Error:', err.stack)
   res.status(500).json({ 
     error: 'Internal server error',
@@ -228,9 +277,12 @@ io.on('connection', (socket) => {
 
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
-  httpServer.listen(PORT, () => {
-    console.log(`Signaling server running on http://localhost:${PORT}`)
+  server.listen(PORT, () => {
+    console.log(`Signaling server running on ${protocol}://localhost:${PORT}`)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`API documentation available at ${protocol}://localhost:${PORT}/api-docs`)
+    }
   })
 }
 
-export { app, httpServer }
+export { app, httpServer, httpsServer as any }

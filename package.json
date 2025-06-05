@@ -8,13 +8,19 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter=web --filter=signaling run dev",
+    "dev:https": "pnpm --parallel --filter=web --filter=signaling run dev:https",
+    "dev:docker": "./scripts/dev-docker.sh",
     "dev:web": "pnpm --filter web dev",
     "dev:signaling": "pnpm --filter signaling dev",
     "build": "pnpm -r build",
     "build:docs": "pnpm --filter signaling docs",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "check:https": "node scripts/check-https.js",
+    "docker:up": "docker-compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
   },
   "devDependencies": {}
 }

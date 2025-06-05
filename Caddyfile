@@ -1,0 +1,130 @@
+# Caddyfile - Caddy configuration for HTTP/3 reverse proxy
+# This simulates Cloudflare's edge behavior with HTTP/3 support
+
+# Global options
+{
+    # Enable debug logging
+    debug
+    
+    # Admin API for monitoring
+    admin 0.0.0.0:2019
+    
+    # Enable HTTP/3 experimental features
+    servers {
+        protocols h3 h2 h1
+        strict_sni_host
+    }
+}
+
+# Main site configuration
+:9443 {
+    # Use local certificates
+    tls /certs/vibe.local.pem /certs/vibe.local-key.pem
+
+    # Enable HTTP/3 with fallback to HTTP/2 and HTTP/1.1
+    # This mimics Cloudflare's protocol negotiation
+    encode gzip zstd
+    
+    # Security headers similar to Cloudflare
+    header {
+        # Security headers
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        
+        # Enable HTTP/3
+        Alt-Svc "h3=\":9443\"; ma=86400"
+        
+        # Remove server header
+        -Server
+        
+        # Add custom headers to track protocol
+        X-Protocol {http.request.proto}
+        X-HTTP-Version {http.request.version}
+    }
+
+
+    # Static file caching (similar to Cloudflare)
+    @static {
+        path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # API routes to signaling server
+    handle_path /api/signaling/* {
+        # Strip the /api/signaling prefix and proxy to signaling server
+        reverse_proxy signaling:4000 {
+            # Add headers for debugging
+            header_down X-Upstream-Protocol {upstream_proto}
+            
+            # Health checks
+            health_uri /health
+            health_interval 10s
+            health_timeout 5s
+        }
+    }
+    
+    # WebSocket support for Socket.IO
+    @websocket {
+        header Connection *upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy signaling:4000
+    }
+
+    # Socket.IO specific handling
+    handle /socket.io/* {
+        reverse_proxy signaling:4000 {
+            # Preserve headers for Socket.IO
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Room management API endpoints
+    handle /api/rooms* {
+        reverse_proxy signaling:4000 {
+            # Preserve headers for API requests
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Handle Next.js specific paths with caching
+    @nextjs path /_next/* /.next/*
+    handle @nextjs {
+        header Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy web:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+        }
+    }
+    
+    # Next.js application (everything else)
+    handle {
+        reverse_proxy web:3000 {
+            # Preserve headers
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# Monitoring endpoint
+:2019 {
+    metrics /metrics
+}

@@ -4,7 +4,7 @@ import { app, httpServer } from '../index'
 import { io as ioclient, Socket } from 'socket.io-client'
 
 describe('Signaling Server', () => {
-  let server: any
+  let server: typeof httpServer
   
   beforeAll(() => {
     return new Promise<void>((resolve) => {

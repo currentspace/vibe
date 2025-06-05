@@ -48,3 +48,9 @@ next-env.d.ts
 *.swp
 *.swo
 *~
+
+# Certificates
+/certs/
+*.crt
+*.key
+localhost*.pem

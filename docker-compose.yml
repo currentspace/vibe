@@ -1,0 +1,67 @@
+services:
+  # Caddy reverse proxy with HTTP/3 support
+  caddy:
+    image: caddy:2-alpine
+    container_name: vibe-proxy
+    ports:
+      - "9443:9443/tcp"
+      - "9443:9443/udp"  # Required for HTTP/3 (QUIC)
+      - "9080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./certs:/certs
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - CADDY_INGRESS_NETWORKS=vibe-network
+    networks:
+      - vibe-network
+    depends_on:
+      - web
+      - signaling
+
+  # Next.js web application
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: vibe-web
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SIGNALING_URL=https://vibe.local:9443
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - vibe-network
+    command: pnpm dev
+
+  # Signaling server
+  signaling:
+    build:
+      context: ./apps/signaling
+      dockerfile: Dockerfile.dev
+    container_name: vibe-signaling
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - CLIENT_URL=https://vibe.local:9443
+      - USE_HTTP2=true
+      - USE_HTTPS=false
+    volumes:
+      - ./apps/signaling:/app
+      - ./certs:/certs:ro
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - vibe-network
+    command: pnpm dev
+
+networks:
+  vibe-network:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

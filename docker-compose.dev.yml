@@ -1,0 +1,24 @@
+# Development overrides for docker-compose
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # Override for local development without building
+  web:
+    build: null
+    image: node:23-alpine
+    working_dir: /workspace
+    volumes:
+      - ./apps/web:/workspace
+      - ./packages:/packages
+    environment:
+      - WATCHPACK_POLLING=true  # For file watching in Docker
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
+
+  signaling:
+    build: null
+    image: node:23-alpine
+    working_dir: /workspace
+    volumes:
+      - ./apps/signaling:/workspace
+      - ./packages:/packages
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
