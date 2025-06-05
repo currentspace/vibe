@@ -54,6 +54,7 @@ src/
 
 ```typescript
 // Button.test.tsx
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Button } from './Button'
 
@@ -65,7 +66,7 @@ describe('Button', () => {
   })
   
   it('should call onClick handler when clicked', () => {
-    const handleClick = jest.fn()
+    const handleClick = vi.fn()
     render(<Button onClick={handleClick}>Click me</Button>)
     
     fireEvent.click(screen.getByRole('button'))
@@ -339,18 +340,18 @@ export class RoomFactory {
 
 ```typescript
 // Mock Socket.io
-jest.mock('socket.io-client', () => ({
-  io: jest.fn(() => ({
-    on: jest.fn(),
-    emit: jest.fn(),
-    disconnect: jest.fn(),
+vi.mock('socket.io-client', () => ({
+  io: vi.fn(() => ({
+    on: vi.fn(),
+    emit: vi.fn(),
+    disconnect: vi.fn(),
   }))
 }))
 
 // Mock Next.js router
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: jest.fn(),
+    push: vi.fn(),
     pathname: '/',
   }),
   useSearchParams: () => new URLSearchParams(),
@@ -364,14 +365,14 @@ jest.mock('next/navigation', () => ({
 export function mockMediaDevices() {
   const mockStream = {
     getTracks: () => [],
-    getVideoTracks: () => [{ stop: jest.fn() }],
-    getAudioTracks: () => [{ stop: jest.fn() }],
+    getVideoTracks: () => [{ stop: vi.fn() }],
+    getAudioTracks: () => [{ stop: vi.fn() }],
   }
   
   Object.defineProperty(navigator, 'mediaDevices', {
     value: {
-      getUserMedia: jest.fn().mockResolvedValue(mockStream),
-      enumerateDevices: jest.fn().mockResolvedValue([
+      getUserMedia: vi.fn().mockResolvedValue(mockStream),
+      enumerateDevices: vi.fn().mockResolvedValue([
         { kind: 'videoinput', deviceId: 'camera1', label: 'Camera 1' },
         { kind: 'audioinput', deviceId: 'mic1', label: 'Microphone 1' },
       ]),
@@ -391,30 +392,36 @@ export function mockMediaDevices() {
 
 ### Coverage Configuration
 
-```javascript
-// jest.config.js
-module.exports = {
-  collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/*.stories.tsx',
-    '!src/**/index.ts', // Barrel exports
-  ],
-  coverageThreshold: {
-    global: {
-      branches: 80,
-      functions: 80,
-      lines: 80,
-      statements: 80,
-    },
-    './src/lib/': {
-      branches: 90,
-      functions: 90,
-      lines: 90,
-      statements: 90,
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'src/**/*.d.ts',
+        'src/**/*.stories.tsx',
+        'src/**/index.ts', // Barrel exports
+      ],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
+        './src/lib/': {
+          lines: 90,
+          functions: 90,
+          branches: 90,
+          statements: 90,
+        },
+      },
     },
   },
-}
+})
 ```
 
 ## Performance Testing
@@ -487,11 +494,11 @@ screen.debug()
 
 // Use console.log with proper cleanup
 beforeEach(() => {
-  jest.spyOn(console, 'log').mockImplementation()
+  vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
 afterEach(() => {
-  jest.restoreAllMocks()
+  vi.restoreAllMocks()
 })
 ```
 
@@ -500,10 +507,10 @@ afterEach(() => {
 ```json
 {
   "type": "node",
-  "name": "Debug Jest Tests",
+  "name": "Debug Vitest Tests",
   "request": "launch",
-  "program": "${workspaceFolder}/node_modules/.bin/jest",
-  "args": ["--runInBand", "--watchAll=false"],
+  "program": "${workspaceFolder}/node_modules/.bin/vitest",
+  "args": ["--run"],
   "console": "integratedTerminal",
   "internalConsoleOptions": "neverOpen"
 }

@@ -1,10 +1,13 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
 import { app, httpServer } from '../index'
 import { io as ioclient, Socket } from 'socket.io-client'
 
 describe('Signaling Server', () => {
-  afterAll((done) => {
-    httpServer.close(done)
+  afterAll(() => {
+    return new Promise<void>((resolve) => {
+      httpServer.close(() => resolve())
+    })
   })
 
   describe('REST API', () => {
@@ -47,19 +50,20 @@ describe('Signaling Server', () => {
     let clientSocket: Socket
     let serverPort: number
 
-    beforeAll((done) => {
+    beforeAll(() => {
       const address = httpServer.address()
       if (address && typeof address !== 'string') {
         serverPort = address.port
       }
-      done()
     })
 
-    beforeEach((done) => {
-      clientSocket = ioclient(`http://localhost:${serverPort}`, {
-        transports: ['websocket'],
+    beforeEach(() => {
+      return new Promise<void>((resolve) => {
+        clientSocket = ioclient(`http://localhost:${serverPort}`, {
+          transports: ['websocket'],
+        })
+        clientSocket.on('connect', resolve)
       })
-      clientSocket.on('connect', done)
     })
 
     afterEach(() => {
@@ -68,9 +72,8 @@ describe('Signaling Server', () => {
       }
     })
 
-    it('should connect to socket', (done) => {
+    it('should connect to socket', () => {
       expect(clientSocket.connected).toBe(true)
-      done()
     })
 
     it('should join a room', async () => {
@@ -89,12 +92,14 @@ describe('Signaling Server', () => {
       })
     })
 
-    it('should handle non-existent room join', (done) => {
-      clientSocket.emit('join-room', 'non-existent-room', 'user123')
-      
-      clientSocket.on('error', (data) => {
-        expect(data).toHaveProperty('message', 'Room not found')
-        done()
+    it('should handle non-existent room join', () => {
+      return new Promise<void>((resolve) => {
+        clientSocket.emit('join-room', 'non-existent-room', 'user123')
+        
+        clientSocket.on('error', (data) => {
+          expect(data).toHaveProperty('message', 'Room not found')
+          resolve()
+        })
       })
     })
   })
