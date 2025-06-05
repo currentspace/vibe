@@ -2,18 +2,19 @@
   "name": "vibe",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "pnpm@9.15.4",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
-  "devDependencies": {
-    "turbo": "^2.3.3"
-  }
+  "devDependencies": {}
 }
