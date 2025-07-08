@@ -49,7 +49,10 @@ interface WebRTCContextType {
 
 const WebRTCContext = createContext<WebRTCContextType | undefined>(undefined)
 
-const SIGNALING_URL = process.env.NEXT_PUBLIC_SIGNALING_URL || 'http://localhost:4000'
+const SIGNALING_URL = process.env.NEXT_PUBLIC_SIGNALING_URL || 
+  (typeof window !== 'undefined' && window.location.protocol === 'https:' 
+    ? 'https://localhost:4000' 
+    : 'http://localhost:4000')
 
 export function WebRTCProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null)

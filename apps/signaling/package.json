@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "USE_HTTPS=false tsx watch src/index.ts",
     "dev:https": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
