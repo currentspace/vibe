@@ -15,11 +15,12 @@ import * as THREE from 'three'
 // Parameter interface
 interface KintsugiParams {
   crackCount: number
-  separation: number
-  goldThickness: number
+  crackThickness: number
+  goldIntensity: number
   goldShimmer: number
   goldFlowSpeed: number
-  crackJaggedness: number
+  crackCurviness: number
+  branchProbability: number
   lightIntensity: number
   ambientIntensity: number
   rotationSpeed: number
@@ -27,11 +28,245 @@ interface KintsugiParams {
 }
 
 /**
- * Kintsugi Mesh Component with customizable parameters
+ * Generate procedural crack curves that reach edges
+ */
+function generateCrackCurves({ 
+  crackCount = 5, 
+  branchChance = 0.3,
+  curviness = 0.7 
+}: {
+  crackCount: number
+  branchChance: number
+  curviness: number
+}) {
+  const cracks: Array<{
+    points: THREE.Vector3[]
+    widths: number[]
+    isBranch: boolean
+    parentIdx?: number
+    branchPoint?: number
+  }> = []
+  
+  // Helper to get edge point
+  const getEdgePoint = (t: number): THREE.Vector3 => {
+    const edge = Math.floor(t * 4)
+    const edgeT = (t * 4) % 1
+    
+    switch (edge) {
+      case 0: // top edge
+        return new THREE.Vector3(-2 + edgeT * 4, 2, 0.01)
+      case 1: // right edge
+        return new THREE.Vector3(2, 2 - edgeT * 4, 0.01)
+      case 2: // bottom edge
+        return new THREE.Vector3(2 - edgeT * 4, -2, 0.01)
+      default: // left edge
+        return new THREE.Vector3(-2, -2 + edgeT * 4, 0.01)
+    }
+  }
+  
+  // Generate main cracks
+  for (let i = 0; i < crackCount; i++) {
+    // Start from a random edge
+    const startEdge = Math.random()
+    const start = getEdgePoint(startEdge)
+    
+    // End at a different edge
+    let endEdge = Math.random()
+    while (Math.abs(endEdge - startEdge) < 0.15) {
+      endEdge = Math.random()
+    }
+    const end = getEdgePoint(endEdge)
+    
+    // Generate path from start to end
+    const points: THREE.Vector3[] = [start]
+    const widths: number[] = [0.1] // Start thin
+    
+    const steps = 20 + Math.floor(Math.random() * 15)
+    
+    for (let j = 1; j < steps; j++) {
+      const t = j / (steps - 1)
+      
+      // Base interpolation
+      const basePoint = start.clone().lerp(end, t)
+      
+      // Add perpendicular displacement for curviness
+      const tangent = end.clone().sub(start).normalize()
+      const perpendicular = new THREE.Vector3(-tangent.y, tangent.x, 0)
+      
+      // Multiple sine waves for natural curves
+      const wave1 = Math.sin(t * Math.PI * 2) * curviness * 0.5
+      const wave2 = Math.sin(t * Math.PI * 4 + i) * curviness * 0.2
+      const wave3 = Math.sin(t * Math.PI * 6 + i * 2) * curviness * 0.1
+      const displacement = (wave1 + wave2 + wave3) * (1 - Math.pow(2 * t - 1, 4)) // Reduce at edges
+      
+      const point = basePoint.add(perpendicular.clone().multiplyScalar(displacement))
+      points.push(point)
+      
+      // Vary width along the crack
+      const widthBase = 1.0
+      const widthVariation = Math.sin(t * Math.PI * 3 + i) * 0.3 + 
+                           Math.sin(t * Math.PI * 7 + i * 2) * 0.2
+      const edgeTaper = Math.min(t * 5, (1 - t) * 5, 1) // Taper at edges
+      widths.push(widthBase * (1 + widthVariation) * edgeTaper)
+    }
+    
+    points.push(end)
+    widths.push(0.1) // End thin
+    
+    cracks.push({ points, widths, isBranch: false })
+    
+    // Add branches
+    if (Math.random() < branchChance) {
+      const branchCount = 1 + Math.floor(Math.random() * 2)
+      
+      for (let b = 0; b < branchCount; b++) {
+        // Pick a point on the main crack to branch from
+        const branchT = 0.2 + Math.random() * 0.6 // Avoid edges
+        const branchIndex = Math.floor(branchT * (points.length - 1))
+        const branchStart = points[branchIndex].clone()
+        const parentWidth = widths[branchIndex]
+        
+        // Determine branch direction
+        const mainDirection = points[Math.min(branchIndex + 1, points.length - 1)]
+          .clone().sub(points[Math.max(branchIndex - 1, 0)]).normalize()
+        const branchDirection = new THREE.Vector3(-mainDirection.y, mainDirection.x, 0)
+        if (Math.random() > 0.5) branchDirection.multiplyScalar(-1)
+        
+        // Branch end point
+        const branchLength = 0.5 + Math.random() * 1.5
+        const branchEnd = branchStart.clone().add(
+          branchDirection.multiplyScalar(branchLength)
+        )
+        
+        // Keep within bounds
+        branchEnd.x = Math.max(-2, Math.min(2, branchEnd.x))
+        branchEnd.y = Math.max(-2, Math.min(2, branchEnd.y))
+        
+        const branchPoints: THREE.Vector3[] = [branchStart]
+        const branchWidths: number[] = [parentWidth * 0.7] // Start from parent width
+        
+        const branchSteps = 10 + Math.floor(Math.random() * 8)
+        
+        for (let j = 1; j < branchSteps; j++) {
+          const t = j / (branchSteps - 1)
+          
+          // Base interpolation
+          const basePoint = branchStart.clone().lerp(branchEnd, t)
+          
+          // Add curviness
+          const perpendicular = new THREE.Vector3(-branchDirection.y, branchDirection.x, 0)
+          const wave = Math.sin(t * Math.PI * 2) * curviness * 0.3
+          const point = basePoint.add(perpendicular.clone().multiplyScalar(wave))
+          
+          branchPoints.push(point)
+          
+          // Taper width
+          const taper = 1 - t * 0.8
+          branchWidths.push(parentWidth * 0.7 * taper)
+        }
+        
+        branchPoints.push(branchEnd)
+        branchWidths.push(0.05) // Very thin at end
+        
+        if (branchPoints.length > 2) {
+          cracks.push({ 
+            points: branchPoints, 
+            widths: branchWidths, 
+            isBranch: true,
+            parentIdx: i,
+            branchPoint: branchIndex
+          })
+        }
+      }
+    }
+  }
+  
+  return cracks
+}
+
+/**
+ * Create custom geometry for variable-width cracks
+ */
+function createCrackGeometry(points: THREE.Vector3[], widths: number[], thickness: number): THREE.BufferGeometry {
+  const vertices: number[] = []
+  const normals: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+  
+  // Generate ribbon geometry
+  let totalLength = 0
+  const lengths: number[] = [0]
+  
+  for (let i = 1; i < points.length; i++) {
+    const segmentLength = points[i].distanceTo(points[i - 1])
+    totalLength += segmentLength
+    lengths.push(totalLength)
+  }
+  
+  // Create vertices along the crack
+  for (let i = 0; i < points.length; i++) {
+    const t = lengths[i] / totalLength
+    const width = widths[i] * thickness * 0.03
+    
+    // Calculate perpendicular direction
+    let direction: THREE.Vector3
+    if (i === 0) {
+      direction = points[1].clone().sub(points[0]).normalize()
+    } else if (i === points.length - 1) {
+      direction = points[i].clone().sub(points[i - 1]).normalize()
+    } else {
+      const prev = points[i].clone().sub(points[i - 1]).normalize()
+      const next = points[i + 1].clone().sub(points[i]).normalize()
+      direction = prev.add(next).normalize()
+    }
+    
+    const perpendicular = new THREE.Vector3(-direction.y, direction.x, 0)
+    
+    // Left vertex
+    vertices.push(
+      points[i].x - perpendicular.x * width,
+      points[i].y - perpendicular.y * width,
+      points[i].z
+    )
+    normals.push(0, 0, 1)
+    uvs.push(0, t)
+    
+    // Right vertex
+    vertices.push(
+      points[i].x + perpendicular.x * width,
+      points[i].y + perpendicular.y * width,
+      points[i].z
+    )
+    normals.push(0, 0, 1)
+    uvs.push(1, t)
+  }
+  
+  // Create triangles
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = i * 2
+    const b = i * 2 + 1
+    const c = (i + 1) * 2
+    const d = (i + 1) * 2 + 1
+    
+    indices.push(a, c, b)
+    indices.push(b, c, d)
+  }
+  
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geometry.setIndex(indices)
+  
+  return geometry
+}
+
+/**
+ * Kintsugi Mesh Component with gold crack lines
  */
 function KintsugiMesh({ params }: { params: KintsugiParams }) {
   const groupRef = useRef<THREE.Group>(null)
-  const crackMaterialRef = useRef<THREE.ShaderMaterial>(null)
+  const goldMaterialsRef = useRef<THREE.ShaderMaterial[]>([])
   
   // Load textures
   const [slateTexture, goldTexture] = useLoader(THREE.TextureLoader, [
@@ -39,211 +274,150 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
     '/gold.png'
   ])
   
-  // Set texture wrapping and scaling
+  // Set texture properties
   useEffect(() => {
     slateTexture.wrapS = slateTexture.wrapT = THREE.ClampToEdgeWrapping
     goldTexture.wrapS = goldTexture.wrapT = THREE.RepeatWrapping
+    goldTexture.repeat.set(0.5, 2)
     slateTexture.magFilter = THREE.LinearFilter
     slateTexture.minFilter = THREE.LinearMipmapLinearFilter
+    goldTexture.magFilter = THREE.LinearFilter
+    goldTexture.minFilter = THREE.LinearMipmapLinearFilter
   }, [slateTexture, goldTexture])
 
-  // Create geometry pieces based on crack pattern
-  const pieces = useMemo(() => {
-    const centerPoint = new THREE.Vector2(0.5, 0.5)
-    const pieceData: Array<{
-      geometry: THREE.BufferGeometry,
-      position: THREE.Vector3,
-      direction: THREE.Vector2,
-      vertices: THREE.Vector2[]
-    }> = []
-
-    // Random function for natural variations
-    const random = (seed: number) => {
-      const x = Math.sin(seed) * 10000
-      return x - Math.floor(x)
-    }
-
-    // Create cracks radiating from center
-    const angleStep = (Math.PI * 2) / params.crackCount
-    const centerJitter = 0.05 * params.crackJaggedness
-    
-    for (let i = 0; i < params.crackCount; i++) {
-      const angle1 = i * angleStep + (random(i * 2) - 0.5) * 0.2 * params.crackJaggedness
-      const angle2 = (i + 1) * angleStep + (random((i + 1) * 2) - 0.5) * 0.2 * params.crackJaggedness
-      
-      // Add variation to center point for each piece
-      const pieceCenter = new THREE.Vector2(
-        0.5 + (random(i * 3) - 0.5) * centerJitter,
-        0.5 + (random(i * 3 + 1) - 0.5) * centerJitter
-      )
-      
-      // Create vertices for this piece with irregular edges
-      const vertices: THREE.Vector2[] = [pieceCenter]
-      
-      // Create edge points with natural variation
-      const edgePoints = Math.floor(6 + params.crackJaggedness * 4)
-      for (let j = 0; j <= edgePoints; j++) {
-        const t = j / edgePoints
-        const angle = angle1 + (angle2 - angle1) * t
-        
-        // Add jaggedness to the radius
-        const radiusVariation = 0.4 + random(i * 100 + j) * 0.2
-        const jitter = (random(i * 50 + j * 2) - 0.5) * 0.03 * params.crackJaggedness
-        
-        vertices.push(new THREE.Vector2(
-          0.5 + Math.cos(angle) * radiusVariation + jitter,
-          0.5 + Math.sin(angle) * radiusVariation + jitter
-        ))
-      }
-      
-      // Create geometry using triangulation
-      const geometry = new THREE.BufferGeometry()
-      const positions: number[] = []
-      const uvs: number[] = []
-      
-      // Fan triangulation from center
-      for (let j = 1; j < vertices.length - 1; j++) {
-        positions.push(
-          (vertices[0].x - 0.5) * 4, (vertices[0].y - 0.5) * 4, 0,
-          (vertices[j].x - 0.5) * 4, (vertices[j].y - 0.5) * 4, 0,
-          (vertices[j + 1].x - 0.5) * 4, (vertices[j + 1].y - 0.5) * 4, 0
-        )
-        
-        uvs.push(
-          vertices[0].x, vertices[0].y,
-          vertices[j].x, vertices[j].y,
-          vertices[j + 1].x, vertices[j + 1].y
-        )
-      }
-      
-      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3))
-      geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2))
-      geometry.computeVertexNormals()
-      
-      // Calculate piece center and movement direction
-      const avgX = vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length
-      const avgY = vertices.reduce((sum, v) => sum + v.y, 0) / vertices.length
-      const avgCenter = new THREE.Vector2(avgX, avgY)
-      
-      const direction = avgCenter.clone().sub(centerPoint).normalize()
-      
-      pieceData.push({
-        geometry,
-        position: new THREE.Vector3(0, 0, 0),
-        direction,
-        vertices
-      })
-    }
-    
-    return pieceData
-  }, [params.crackCount, params.crackJaggedness])
-
-  // Create shader material for cracks/gold
-  const crackMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        u_goldTexture: { value: goldTexture },
-        u_time: { value: 0 },
-        u_goldThickness: { value: params.goldThickness },
-        u_shimmerIntensity: { value: params.goldShimmer },
-        u_flowSpeed: { value: params.goldFlowSpeed }
-      },
-      side: THREE.DoubleSide,
-      transparent: true,
-      vertexShader: `
-        varying vec2 vUv;
-        
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        precision highp float;
-        
-        uniform sampler2D u_goldTexture;
-        uniform float u_time;
-        uniform float u_goldThickness;
-        uniform float u_shimmerIntensity;
-        uniform float u_flowSpeed;
-        
-        varying vec2 vUv;
-        
-        void main() {
-          // Animate gold texture for flow effect
-          vec2 flowUV = vUv;
-          flowUV.x += sin(u_time * u_flowSpeed * 2.0 + vUv.y * 10.0) * 0.02;
-          flowUV.y += cos(u_time * u_flowSpeed * 2.0 + vUv.x * 10.0) * 0.02;
-          
-          // Add more complex flow patterns
-          flowUV.x += sin(u_time * u_flowSpeed * 1.5 + vUv.x * 15.0) * 0.01;
-          flowUV.y += cos(u_time * u_flowSpeed * 1.3 + vUv.y * 12.0) * 0.01;
-          
-          vec4 gold = texture2D(u_goldTexture, flowUV);
-          
-          // Enhance gold with metallic shine
-          float shimmer = sin(u_time * 3.0 + vUv.x * 20.0 + vUv.y * 15.0) * u_shimmerIntensity + (1.0 - u_shimmerIntensity * 0.5);
-          shimmer += sin(u_time * 2.0 + vUv.y * 25.0) * u_shimmerIntensity * 0.3;
-          gold.rgb *= shimmer;
-          
-          // Adjust alpha based on thickness parameter
-          gl_FragColor = vec4(gold.rgb, u_goldThickness);
-        }
-      `
+  // Generate crack geometries
+  const crackData = useMemo(() => {
+    const curves = generateCrackCurves({
+      crackCount: params.crackCount,
+      branchChance: params.branchProbability,
+      curviness: params.crackCurviness
     })
-  }, [goldTexture, params.goldThickness, params.goldShimmer, params.goldFlowSpeed])
+    
+    return curves.map(crack => ({
+      geometry: createCrackGeometry(crack.points, crack.widths, params.crackThickness),
+      isBranch: crack.isBranch
+    }))
+  }, [params.crackCount, params.crackThickness, params.branchProbability, params.crackCurviness])
 
-  // Update shader uniforms when params change
-  useEffect(() => {
-    if (crackMaterialRef.current) {
-      crackMaterialRef.current.uniforms.u_goldThickness.value = params.goldThickness
-      crackMaterialRef.current.uniforms.u_shimmerIntensity.value = params.goldShimmer
-      crackMaterialRef.current.uniforms.u_flowSpeed.value = params.goldFlowSpeed
-    }
-  }, [params.goldThickness, params.goldShimmer, params.goldFlowSpeed])
+  // Create shader materials for animated gold
+  const goldMaterials = useMemo(() => {
+    goldMaterialsRef.current = crackData.map((_, index) => {
+      return new THREE.ShaderMaterial({
+        uniforms: {
+          goldTexture: { value: goldTexture },
+          time: { value: 0 },
+          flowSpeed: { value: params.goldFlowSpeed },
+          shimmerIntensity: { value: params.goldShimmer },
+          goldIntensity: { value: params.goldIntensity },
+          crackIndex: { value: index }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          varying vec3 vPosition;
+          
+          void main() {
+            vUv = uv;
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D goldTexture;
+          uniform float time;
+          uniform float flowSpeed;
+          uniform float shimmerIntensity;
+          uniform float goldIntensity;
+          uniform float crackIndex;
+          
+          varying vec2 vUv;
+          varying vec3 vPosition;
+          
+          void main() {
+            // Flow animation along crack length
+            vec2 flowUv = vUv;
+            flowUv.y += time * flowSpeed * 0.2;
+            flowUv.x += sin(time * flowSpeed + vUv.y * 10.0) * 0.1;
+            
+            // Sample gold texture
+            vec4 gold = texture2D(goldTexture, flowUv);
+            
+            // Lava-like glow
+            float glow = sin(time * 3.0 + vUv.y * 20.0 + crackIndex) * 0.5 + 0.5;
+            glow *= sin(time * 5.0 + vUv.x * 15.0 + vPosition.x * 10.0) * 0.3 + 0.7;
+            
+            // Shimmer waves
+            float shimmer1 = sin(time * 4.0 + vPosition.x * 20.0 + vPosition.y * 20.0) * shimmerIntensity;
+            float shimmer2 = sin(time * 6.0 - vPosition.x * 15.0 + vPosition.y * 25.0) * shimmerIntensity * 0.5;
+            float shimmer = 1.0 + shimmer1 + shimmer2;
+            
+            // Hot spots that move
+            float hotspot = smoothstep(0.3, 0.7, sin(time * 2.0 + vUv.y * 30.0)) * 0.5;
+            
+            // Combine effects
+            vec3 finalColor = gold.rgb * goldIntensity;
+            finalColor *= (glow * 0.5 + 0.5) * shimmer;
+            
+            // Add orange/red tints for lava effect
+            finalColor.r += hotspot * 0.3;
+            finalColor.g += hotspot * 0.1;
+            
+            // Emit light
+            vec3 emission = vec3(1.0, 0.8, 0.4) * goldIntensity * 0.5 * (glow + hotspot);
+            
+            gl_FragColor = vec4(finalColor + emission, 1.0);
+          }
+        `,
+        side: THREE.DoubleSide,
+        transparent: false
+      })
+    })
+    
+    return goldMaterialsRef.current
+  }, [goldTexture, params.goldFlowSpeed, params.goldShimmer, params.goldIntensity, crackData.length])
 
   // Animation loop
   useFrame((state) => {
     if (!groupRef.current) return
     
-    const currentTime = state.clock.elapsedTime
+    const time = state.clock.elapsedTime
     
-    // Update time uniform
-    if (crackMaterialRef.current) {
-      crackMaterialRef.current.uniforms.u_time.value = currentTime
-    }
-    
-    // Move pieces apart based on separation parameter
-    groupRef.current.children.forEach((child, index) => {
-      if (child instanceof THREE.Mesh && pieces[index]) {
-        const piece = pieces[index]
-        child.position.x = piece.direction.x * params.separation * 0.3
-        child.position.y = piece.direction.y * params.separation * 0.3
-        child.position.z = Math.sin(index) * params.separation * 0.05
+    // Update shader uniforms
+    goldMaterialsRef.current.forEach(material => {
+      if (material.uniforms.time) {
+        material.uniforms.time.value = time
       }
     })
     
-    // Rotation based on speed parameter
+    // Rotation animation
     groupRef.current.rotation.y += params.rotationSpeed * 0.01
-    groupRef.current.rotation.x = Math.sin(currentTime * 0.1) * 0.05
+    groupRef.current.rotation.x = Math.sin(time * 0.1) * 0.02 * params.rotationSpeed
   })
 
   return (
     <group ref={groupRef}>
-      {/* Render each piece */}
-      {pieces.map((piece, index) => (
-        <mesh key={index} geometry={piece.geometry}>
-          <meshBasicMaterial map={slateTexture} />
+      {/* Slate background */}
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[4, 4]} />
+        <meshStandardMaterial 
+          map={slateTexture} 
+          roughness={0.9}
+          metalness={0.1}
+        />
+      </mesh>
+      
+      {/* Gold cracks */}
+      {crackData.map((crack, index) => (
+        <mesh key={index} geometry={crack.geometry}>
+          <primitive object={goldMaterials[index]} attach="material" />
         </mesh>
       ))}
       
-      {/* Gold/crack plane behind pieces */}
-      {params.separation > 0 && (
-        <mesh position={[0, 0, -0.1]}>
-          <planeGeometry args={[4, 4]} />
-          <primitive object={crackMaterial} ref={crackMaterialRef} attach="material" />
-        </mesh>
-      )}
+      {/* Bloom lighting for gold glow */}
+      <pointLight 
+        position={[0, 0, 1]} 
+        intensity={params.goldIntensity * 0.5} 
+        color="#ffaa44" 
+      />
     </group>
   )
 }
@@ -319,15 +493,16 @@ function ParamSlider({
 export default function KintsugiThreeJS() {
   const [fps, setFps] = useState(0)
   const [params, setParams] = useState<KintsugiParams>({
-    crackCount: 6,
-    separation: 1,
-    goldThickness: 0.8,
-    goldShimmer: 0.5,
-    goldFlowSpeed: 0.5,
-    crackJaggedness: 0.5,
-    lightIntensity: 0.8,
-    ambientIntensity: 0.7,
-    rotationSpeed: 0.2,
+    crackCount: 5,
+    crackThickness: 0.5,
+    goldIntensity: 1.2,
+    goldShimmer: 0.3,
+    goldFlowSpeed: 1.0,
+    crackCurviness: 0.7,
+    branchProbability: 0.4,
+    lightIntensity: 1.0,
+    ambientIntensity: 0.6,
+    rotationSpeed: 0.0,
     cameraDistance: 5
   })
 
@@ -341,7 +516,7 @@ export default function KintsugiThreeJS() {
       <ChakraBox position="relative" flex={1} height="100%">
         <Canvas
           camera={{ position: [0, 0, params.cameraDistance], fov: 50 }}
-          style={{ background: '#1a1a1a' }}
+          style={{ background: '#0a0a0a' }}
           gl={{ antialias: true }}
         >
           {/* FPS Counter */}
@@ -350,16 +525,15 @@ export default function KintsugiThreeJS() {
           {/* Lighting */}
           <ambientLight intensity={params.ambientIntensity} />
           <directionalLight 
-            position={[10, 10, 5]} 
+            position={[5, 5, 5]} 
             intensity={params.lightIntensity} 
             castShadow 
           />
           <directionalLight 
-            position={[-5, 5, 5]} 
-            intensity={params.lightIntensity * 0.6} 
-            color="#ffeecc" 
+            position={[-5, 5, 3]} 
+            intensity={params.lightIntensity * 0.5} 
+            color="#fff5ee" 
           />
-          <pointLight position={[0, 0, 10]} intensity={params.lightIntensity * 0.4} />
           
           {/* Kintsugi Mesh */}
           <React.Suspense fallback={null}>
@@ -409,21 +583,28 @@ export default function KintsugiThreeJS() {
             label="Crack Count" 
             value={params.crackCount} 
             onChange={updateParam('crackCount')}
-            min={3}
-            max={12}
+            min={1}
+            max={10}
             step={1}
           />
           <ParamSlider 
-            label="Separation" 
-            value={params.separation} 
-            onChange={updateParam('separation')}
+            label="Crack Thickness" 
+            value={params.crackThickness} 
+            onChange={updateParam('crackThickness')}
+            min={0}
+            max={1}
+          />
+          <ParamSlider 
+            label="Crack Curviness" 
+            value={params.crackCurviness} 
+            onChange={updateParam('crackCurviness')}
             min={0}
             max={2}
           />
           <ParamSlider 
-            label="Crack Jaggedness" 
-            value={params.crackJaggedness} 
-            onChange={updateParam('crackJaggedness')}
+            label="Branch Probability" 
+            value={params.branchProbability} 
+            onChange={updateParam('branchProbability')}
             min={0}
             max={1}
           />
@@ -432,18 +613,18 @@ export default function KintsugiThreeJS() {
         <VStack align="stretch" gap={4}>
           <Heading size="sm">Gold Properties</Heading>
           <ParamSlider 
-            label="Gold Thickness" 
-            value={params.goldThickness} 
-            onChange={updateParam('goldThickness')}
+            label="Gold Intensity" 
+            value={params.goldIntensity} 
+            onChange={updateParam('goldIntensity')}
             min={0}
-            max={1}
+            max={2}
           />
           <ParamSlider 
             label="Gold Shimmer" 
             value={params.goldShimmer} 
             onChange={updateParam('goldShimmer')}
             min={0}
-            max={1}
+            max={0.5}
           />
           <ParamSlider 
             label="Flow Speed" 
