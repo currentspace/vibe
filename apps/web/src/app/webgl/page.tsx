@@ -1,8 +1,9 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Box, Container, Heading, Text, VStack } from '@chakra-ui/react'
+import { Box, Container, Heading, Text, VStack, Button } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 
 // Dynamically import the WebGL component to avoid SSR issues
 const WebGLCanvas = dynamic(() => import('@/components/WebGLCanvas'), {
@@ -20,6 +21,14 @@ const WebGLCanvas = dynamic(() => import('@/components/WebGLCanvas'), {
       <Text>Loading WebGL...</Text>
     </Box>
   )
+})
+
+const SimpleWebGL = dynamic(() => import('@/components/SimpleWebGL'), {
+  ssr: false
+})
+
+const ModernWebGL = dynamic(() => import('@/components/ModernWebGL'), {
+  ssr: false
 })
 
 export default function WebGLPage() {
@@ -43,7 +52,7 @@ export default function WebGLPage() {
           shadow="lg"
         >
           <Suspense fallback={<Box p={8}>Loading WebGL context...</Box>}>
-            <WebGLCanvas />
+            <ModernWebGL />
           </Suspense>
         </Box>
 
@@ -60,6 +69,14 @@ export default function WebGLPage() {
             <Text>• ResizeObserver for responsive canvas</Text>
             <Text>• Proper WebGL resource management</Text>
           </VStack>
+          
+          <Box mt={4}>
+            <Link href="/webgl/compare">
+              <Button colorScheme="blue" size="lg">
+                View WebGL vs Three.js Comparison →
+              </Button>
+            </Link>
+          </Box>
         </Box>
       </VStack>
     </Container>

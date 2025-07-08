@@ -20,12 +20,30 @@ export default function WebGLCanvas() {
 
   // Initialize WebGL context
   const initWebGL = useCallback((canvas: HTMLCanvasElement): WebGLRenderingContext | null => {
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl')
+    console.log('Initializing WebGL context')
+    
+    // Try WebGL 1 first for better compatibility
+    const gl = canvas.getContext('webgl', {
+      alpha: true,
+      depth: true,
+      stencil: false,
+      antialias: true,
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: false,
+      powerPreference: 'default',
+      failIfMajorPerformanceCaveat: false
+    }) as WebGLRenderingContext | null
     
     if (!gl) {
       console.error('WebGL not supported')
       return null
     }
+
+    console.log('WebGL context created successfully')
+    console.log('GL_VERSION:', gl.getParameter(gl.VERSION))
+    console.log('GL_SHADING_LANGUAGE_VERSION:', gl.getParameter(gl.SHADING_LANGUAGE_VERSION))
+    console.log('GL_VENDOR:', gl.getParameter(gl.VENDOR))
+    console.log('GL_RENDERER:', gl.getParameter(gl.RENDERER))
 
     // Set viewport to match canvas size
     gl.viewport(0, 0, canvas.width, canvas.height)
@@ -33,19 +51,31 @@ export default function WebGLCanvas() {
     // Set clear color (dark blue)
     gl.clearColor(0.1, 0.1, 0.2, 1.0)
     
+    // Enable depth testing
+    gl.enable(gl.DEPTH_TEST)
+    
     return gl
   }, [])
 
   // Create shader helper
   const createShader = useCallback((gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null => {
+    console.log('Creating shader:', type === gl.VERTEX_SHADER ? 'vertex' : 'fragment')
+    console.log('Shader source:', source)
+    
     const shader = gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      console.error('Failed to create shader object')
+      return null
+    }
 
     gl.shaderSource(shader, source)
     gl.compileShader(shader)
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.error('Shader compilation error:', gl.getShaderInfoLog(shader))
+      const info = gl.getShaderInfoLog(shader)
+      const shaderType = type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'
+      console.error(`${shaderType} shader compilation error:`, info || 'No error info available')
+      console.error('WebGL context lost?', gl.isContextLost())
       gl.deleteShader(shader)
       return null
     }
@@ -55,41 +85,27 @@ export default function WebGLCanvas() {
 
   // Create shader program
   const createShaderProgram = useCallback((gl: WebGLRenderingContext): WebGLProgram | null => {
-    // Vertex shader - modern GLSL
+    // Vertex shader - WebGL 1.0 compatible
     const vertexShaderSource = `
-      precision mediump float;
-      
-      attribute vec4 a_position;
+      attribute vec2 a_position;
       attribute vec4 a_color;
-      
-      uniform mat4 u_matrix;
-      uniform float u_time;
       
       varying vec4 v_color;
       
       void main() {
-        // Animate position based on time
-        vec4 pos = a_position;
-        pos.x += sin(u_time + a_position.y * 3.0) * 0.1;
-        
-        gl_Position = u_matrix * pos;
+        gl_Position = vec4(a_position, 0.0, 1.0);
         v_color = a_color;
       }
     `
 
-    // Fragment shader
+    // Fragment shader - WebGL 1.0 compatible
     const fragmentShaderSource = `
       precision mediump float;
       
       varying vec4 v_color;
-      uniform float u_time;
       
       void main() {
-        // Animate color based on time
-        vec4 color = v_color;
-        color.rgb *= 0.8 + sin(u_time * 2.0) * 0.2;
-        
-        gl_FragColor = color;
+        gl_FragColor = v_color;
       }
     `
 
@@ -137,8 +153,40 @@ export default function WebGLCanvas() {
     }
   }, [])
 
+  // Create buffers (moved outside animation loop for efficiency)
+  const createBuffers = useCallback((gl: WebGLRenderingContext) => {
+    // Triangle positions
+    const positions = new Float32Array([
+      -0.5, -0.5,
+       0.5, -0.5,
+       0.0,  0.5,
+    ])
+
+    // Triangle colors
+    const colors = new Float32Array([
+      1.0, 0.0, 0.0, 1.0,  // Red
+      0.0, 1.0, 0.0, 1.0,  // Green
+      0.0, 0.0, 1.0, 1.0,  // Blue
+    ])
+
+    const positionBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
+
+    const colorBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW)
+
+    return { positionBuffer, colorBuffer }
+  }, [])
+
   // Animation loop
-  const animate = useCallback((gl: WebGLRenderingContext, program: WebGLProgram, startTime: number) => {
+  const animate = useCallback((
+    gl: WebGLRenderingContext, 
+    program: WebGLProgram, 
+    buffers: { positionBuffer: WebGLBuffer | null, colorBuffer: WebGLBuffer | null },
+    startTime: number
+  ) => {
     const render = (currentTime: number) => {
       const time = (currentTime - startTime) * 0.001 // Convert to seconds
 
@@ -148,50 +196,21 @@ export default function WebGLCanvas() {
       // Use shader program
       gl.useProgram(program)
 
-      // Set uniforms
-      const timeLocation = gl.getUniformLocation(program, 'u_time')
-      gl.uniform1f(timeLocation, time)
+      // Bind position buffer and set attribute
+      if (buffers.positionBuffer) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positionBuffer)
+        const positionLocation = gl.getAttribLocation(program, 'a_position')
+        gl.enableVertexAttribArray(positionLocation)
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+      }
 
-      // Set up a simple triangle with colors
-      const positions = new Float32Array([
-        -0.5, -0.5,
-         0.5, -0.5,
-         0.0,  0.5,
-      ])
-
-      const colors = new Float32Array([
-        1.0, 0.0, 0.0, 1.0,  // Red
-        0.0, 1.0, 0.0, 1.0,  // Green
-        0.0, 0.0, 1.0, 1.0,  // Blue
-      ])
-
-      // Create and bind position buffer
-      const positionBuffer = gl.createBuffer()
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
-
-      const positionLocation = gl.getAttribLocation(program, 'a_position')
-      gl.enableVertexAttribArray(positionLocation)
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
-
-      // Create and bind color buffer
-      const colorBuffer = gl.createBuffer()
-      gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW)
-
-      const colorLocation = gl.getAttribLocation(program, 'a_color')
-      gl.enableVertexAttribArray(colorLocation)
-      gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0)
-
-      // Set identity matrix for now
-      const matrixLocation = gl.getUniformLocation(program, 'u_matrix')
-      const identityMatrix = new Float32Array([
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
-      ])
-      gl.uniformMatrix4fv(matrixLocation, false, identityMatrix)
+      // Bind color buffer and set attribute
+      if (buffers.colorBuffer) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.colorBuffer)
+        const colorLocation = gl.getAttribLocation(program, 'a_color')
+        gl.enableVertexAttribArray(colorLocation)
+        gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0)
+      }
 
       // Draw the triangle
       gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -232,9 +251,12 @@ export default function WebGLCanvas() {
       devicePixelContentBoxSize: [{ blockSize: rect.height, inlineSize: rect.width }]
     } as ResizeObserverEntry])
 
+    // Create buffers
+    const buffers = createBuffers(gl)
+    
     // Start animation
     const startTime = performance.now()
-    animate(gl, program, startTime)
+    animate(gl, program, buffers, startTime)
 
     // Cleanup
     return () => {
@@ -252,7 +274,7 @@ export default function WebGLCanvas() {
         loseContext.loseContext()
       }
     }
-  }, [initWebGL, createShaderProgram, handleResize, animate])
+  }, [initWebGL, createShaderProgram, handleResize, createBuffers, animate])
 
   return (
     <Box position="relative" width="100%" height="600px" bg="gray.900">
