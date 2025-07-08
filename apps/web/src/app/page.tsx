@@ -33,13 +33,18 @@ export default function Home() {
           </Stack>
         </Box>
 
-        <Stack direction="row" gap={4} justify="center">
+        <Stack direction="row" gap={4} justify="center" wrap="wrap">
           <Link href="/demo">
             <Button size="lg">View Demo Page</Button>
           </Link>
           <Link href="/connect">
             <Button size="lg" variant="primary" colorScheme="green">
               WebRTC Connect
+            </Button>
+          </Link>
+          <Link href="/webgl">
+            <Button size="lg" variant="primary" colorScheme="purple">
+              WebGL Playground
             </Button>
           </Link>
         </Stack>
