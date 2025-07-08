@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { Box, Container, Heading, Text, VStack, HStack, Button, Grid, Badge } from '@chakra-ui/react'
+import { Box, Heading, Text, VStack, HStack, Button } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
@@ -9,109 +8,29 @@ import Link from 'next/link'
 const KintsugiThreeJS = dynamic(() => import('@/components/KintsugiThreeJS'), { ssr: false })
 
 export default function KintsugiPage() {
-
   return (
-    <Container maxW="container.2xl" py={8}>
-      <VStack gap={8} align="stretch">
-        <Box textAlign="center">
-          <Heading as="h1" size="2xl" mb={4}>
-            Kintsugi WebGL Effect
+    <Box width="100vw" height="100vh" overflow="hidden" display="flex" flexDirection="column">
+      {/* Header */}
+      <HStack justify="space-between" p={4} bg="white" shadow="sm">
+        <VStack align="start" gap={0}>
+          <Heading as="h1" size="lg">
+            Interactive Kintsugi Effect
           </Heading>
-          <Text fontSize="lg" color="gray.600" mb={2}>
-            Watch as slate cracks and fills with flowing gold
+          <Text fontSize="sm" color="gray.600">
+            Adjust parameters to customize the golden repair effect
           </Text>
-          <Text fontSize="sm" color="gray.500">
-            Inspired by the Japanese art of repairing broken pottery with gold
-          </Text>
-        </Box>
-
-        <HStack justify="center" gap={4}>
-          <Link href="/webgl">
-            <Button variant="outline">
-              Back to 3D Demos
-            </Button>
-          </Link>
-        </HStack>
-
-        <Box>
-          <Box
-            borderWidth={1}
-            borderRadius="lg"
-            overflow="hidden"
-            bg="white"
-            shadow="lg"
-            height="600px"
-          >
-            <KintsugiThreeJS />
-          </Box>
-        </Box>
-
-        <Box>
-          <Heading as="h3" size="lg" mb={4}>
-            Features
-          </Heading>
-          <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
-            <VStack align="start" gap={2} fontSize="sm">
-              <Text fontWeight="bold">3D Effects:</Text>
-              <Text>• Vertex displacement along crack lines</Text>
-              <Text>• Interactive orbit controls</Text>
-              <Text>• Multiple light sources</Text>
-              <Text>• Double-sided material</Text>
-            </VStack>
-            <VStack align="start" gap={2} fontSize="sm">
-              <Text fontWeight="bold">Shader Features:</Text>
-              <Text>• Procedural crack generation</Text>
-              <Text>• Custom vertex/fragment shaders</Text>
-              <Text>• Animated texture flow</Text>
-              <Text>• Metallic shimmer effect</Text>
-            </VStack>
-          </Grid>
-        </Box>
-
-        <Box p={6} bg="purple.50" borderRadius="lg">
-          <Heading as="h3" size="md" mb={4}>
-            Animation Stages
-          </Heading>
-          <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={4}>
-            <Box>
-              <Text fontWeight="bold" color="purple.700">1. Slate (0-2s)</Text>
-              <Text fontSize="sm">Original slate texture displayed</Text>
-            </Box>
-            <Box>
-              <Text fontWeight="bold" color="purple.700">2. Cracking (2-4s)</Text>
-              <Text fontSize="sm">Procedural cracks appear and grow</Text>
-            </Box>
-            <Box>
-              <Text fontWeight="bold" color="purple.700">3. Filling (4-7s)</Text>
-              <Text fontSize="sm">Gold gradually fills the cracks</Text>
-            </Box>
-            <Box>
-              <Text fontWeight="bold" color="purple.700">4. Flowing (7s+)</Text>
-              <Text fontSize="sm">Gold texture animates with flow effect</Text>
-            </Box>
-          </Grid>
-        </Box>
-
-        <Box p={6} bg="gray.50" borderRadius="lg">
-          <Heading as="h3" size="md" mb={2}>
-            Technical Details
-          </Heading>
-          <VStack align="start" gap={2}>
-            <Text>
-              <strong>Crack Generation:</strong> Uses layered Perlin noise to create organic, branching crack patterns
-            </Text>
-            <Text>
-              <strong>Texture Blending:</strong> Fragment shader mixes slate and gold textures based on crack mask
-            </Text>
-            <Text>
-              <strong>Flow Effect:</strong> UV coordinates are animated with sine waves for liquid gold appearance
-            </Text>
-            <Text>
-              <strong>Performance:</strong> Runs at 60 FPS with efficient shader-based rendering
-            </Text>
-          </VStack>
-        </Box>
-      </VStack>
-    </Container>
+        </VStack>
+        <Link href="/webgl">
+          <Button variant="outline" size="sm">
+            Back to 3D Demos
+          </Button>
+        </Link>
+      </HStack>
+      
+      {/* Main Content */}
+      <Box flex={1} overflow="hidden">
+        <KintsugiThreeJS />
+      </Box>
+    </Box>
   )
 }

@@ -133,6 +133,12 @@ export default function KintsugiWebGL() {
       console.error('WebGL not supported')
       return null
     }
+    
+    // Type guard to ensure we have WebGLRenderingContext
+    if (!('createShader' in gl)) {
+      console.error('Invalid WebGL context')
+      return null
+    }
 
     // Compile shaders
     const vertexShader = gl.createShader(gl.VERTEX_SHADER)!
@@ -326,7 +332,7 @@ export default function KintsugiWebGL() {
       gl.deleteTexture(slateTexture)
       gl.deleteTexture(goldTexture)
     }
-  }, [stage])
+  }, [stage, vertexShaderSource, fragmentShaderSource])
 
   useEffect(() => {
     const cleanup = initWebGL()

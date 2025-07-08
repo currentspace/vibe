@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Box, Container, Heading, Text, VStack, HStack, Button, Grid, Badge, Alert, AlertIcon } from '@chakra-ui/react'
+import { Box, Container, Heading, Text, VStack, HStack, Button, Grid, Badge } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 
 // Dynamic imports to avoid SSR issues
@@ -18,10 +18,11 @@ export default function WebGLComparePage() {
           <Heading as="h1" size="2xl" mb={4}>
             WebGL Implementation Comparison
           </Heading>
-          <Alert status="info" mb={4}>
-            <AlertIcon />
-            We now use React Three Fiber exclusively for all new 3D features.
-          </Alert>
+          <Box bg="blue.50" p={4} borderRadius="md" mb={4}>
+            <Text color="blue.800">
+              ℹ️ We now use React Three Fiber exclusively for all new 3D features.
+            </Text>
+          </Box>
           <Text fontSize="lg" color="gray.600">
             Historical comparison showing why we migrated from pure WebGL to React Three Fiber
           </Text>

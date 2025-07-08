@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Box, Container, Heading, Text, VStack, Alert, AlertIcon } from '@chakra-ui/react'
+import { Box, Container, Heading, Text, VStack } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
@@ -39,13 +39,14 @@ export default function LegacyWebGLPage() {
           <Heading as="h1" size="2xl" mb={4}>
             Legacy Pure WebGL Examples
           </Heading>
-          <Alert status="warning" mb={4}>
-            <AlertIcon />
-            These are legacy pure WebGL implementations. We now use React Three Fiber for all 3D graphics.
-            <Link href="/webgl" style={{ marginLeft: '8px', textDecoration: 'underline' }}>
-              View modern examples →
-            </Link>
-          </Alert>
+          <Box bg="orange.50" p={4} borderRadius="md" mb={4}>
+            <Text color="orange.800">
+              ⚠️ These are legacy pure WebGL implementations. We now use React Three Fiber for all 3D graphics.
+              <Link href="/webgl" style={{ marginLeft: '8px', textDecoration: 'underline' }}>
+                View modern examples →
+              </Link>
+            </Text>
+          </Box>
           <Text fontSize="lg" color="gray.600">
             Raw WebGL implementations kept for reference and learning purposes
           </Text>
