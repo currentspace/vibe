@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Box, Container, Heading, Text, VStack, Button } from '@chakra-ui/react'
+import { Box, Container, Heading, Text, VStack, HStack, Button } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
@@ -62,13 +62,18 @@ export default function WebGLPage() {
             <Text>• Proper WebGL resource management</Text>
           </VStack>
           
-          <Box mt={4}>
+          <HStack mt={4} gap={4} wrap="wrap">
             <Link href="/webgl/compare">
               <Button colorScheme="blue" size="lg">
                 View WebGL vs Three.js Comparison →
               </Button>
             </Link>
-          </Box>
+            <Link href="/webgl/kintsugi">
+              <Button colorScheme="purple" size="lg">
+                Kintsugi Gold Effect →
+              </Button>
+            </Link>
+          </HStack>
         </Box>
       </VStack>
     </Container>
