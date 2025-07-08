@@ -6,11 +6,9 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
 // Dynamic imports to avoid SSR issues
-const KintsugiWebGL = dynamic(() => import('@/components/KintsugiWebGL'), { ssr: false })
 const KintsugiThreeJS = dynamic(() => import('@/components/KintsugiThreeJS'), { ssr: false })
 
 export default function KintsugiPage() {
-  const [showComparison, setShowComparison] = useState(false)
 
   return (
     <Container maxW="container.2xl" py={8}>
@@ -28,95 +26,47 @@ export default function KintsugiPage() {
         </Box>
 
         <HStack justify="center" gap={4}>
-          <Button
-            onClick={() => setShowComparison(!showComparison)}
-            colorScheme="purple"
-          >
-            {showComparison ? 'Single View' : 'Compare Implementations'}
-          </Button>
           <Link href="/webgl">
             <Button variant="outline">
-              Back to WebGL Demos
+              Back to 3D Demos
             </Button>
           </Link>
         </HStack>
 
-        {showComparison ? (
-          <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={6}>
-            <Box>
-              <VStack align="stretch" gap={4}>
-                <HStack justify="space-between">
-                  <Heading as="h3" size="lg">
-                    Pure WebGL
-                  </Heading>
-                  <Badge colorScheme="orange">Shader-based</Badge>
-                </HStack>
-                
-                <Box
-                  borderWidth={1}
-                  borderRadius="lg"
-                  overflow="hidden"
-                  bg="white"
-                  shadow="lg"
-                  height="500px"
-                >
-                  <KintsugiWebGL />
-                </Box>
-
-                <VStack align="start" gap={2} fontSize="sm">
-                  <Text fontWeight="bold">Features:</Text>
-                  <Text>• Procedural crack generation</Text>
-                  <Text>• Custom fragment shaders</Text>
-                  <Text>• Texture blending</Text>
-                  <Text>• Minimal dependencies</Text>
-                </VStack>
-              </VStack>
-            </Box>
-
-            <Box>
-              <VStack align="stretch" gap={4}>
-                <HStack justify="space-between">
-                  <Heading as="h3" size="lg">
-                    Three.js (R3F)
-                  </Heading>
-                  <Badge colorScheme="green">3D Scene</Badge>
-                </HStack>
-                
-                <Box
-                  borderWidth={1}
-                  borderRadius="lg"
-                  overflow="hidden"
-                  bg="white"
-                  shadow="lg"
-                  height="500px"
-                >
-                  <KintsugiThreeJS />
-                </Box>
-
-                <VStack align="start" gap={2} fontSize="sm">
-                  <Text fontWeight="bold">Features:</Text>
-                  <Text>• 3D plane with displacement</Text>
-                  <Text>• Interactive orbit controls</Text>
-                  <Text>• Built-in texture loader</Text>
-                  <Text>• Perspective camera</Text>
-                </VStack>
-              </VStack>
-            </Box>
-          </Grid>
-        ) : (
-          <Box>
-            <Box
-              borderWidth={1}
-              borderRadius="lg"
-              overflow="hidden"
-              bg="white"
-              shadow="lg"
-              height="600px"
-            >
-              <KintsugiWebGL />
-            </Box>
+        <Box>
+          <Box
+            borderWidth={1}
+            borderRadius="lg"
+            overflow="hidden"
+            bg="white"
+            shadow="lg"
+            height="600px"
+          >
+            <KintsugiThreeJS />
           </Box>
-        )}
+        </Box>
+
+        <Box>
+          <Heading as="h3" size="lg" mb={4}>
+            Features
+          </Heading>
+          <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
+            <VStack align="start" gap={2} fontSize="sm">
+              <Text fontWeight="bold">3D Effects:</Text>
+              <Text>• Vertex displacement along crack lines</Text>
+              <Text>• Interactive orbit controls</Text>
+              <Text>• Multiple light sources</Text>
+              <Text>• Double-sided material</Text>
+            </VStack>
+            <VStack align="start" gap={2} fontSize="sm">
+              <Text fontWeight="bold">Shader Features:</Text>
+              <Text>• Procedural crack generation</Text>
+              <Text>• Custom vertex/fragment shaders</Text>
+              <Text>• Animated texture flow</Text>
+              <Text>• Metallic shimmer effect</Text>
+            </VStack>
+          </Grid>
+        </Box>
 
         <Box p={6} bg="purple.50" borderRadius="lg">
           <Heading as="h3" size="md" mb={4}>

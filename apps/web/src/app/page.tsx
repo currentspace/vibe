@@ -44,7 +44,7 @@ export default function Home() {
           </Link>
           <Link href="/webgl">
             <Button size="lg" variant="primary" colorScheme="purple">
-              WebGL Playground
+              3D Graphics (R3F)
             </Button>
           </Link>
         </Stack>
