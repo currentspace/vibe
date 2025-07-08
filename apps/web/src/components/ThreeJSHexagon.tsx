@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Stats } from '@react-three/drei'
+import { OrbitControls } from '@react-three/drei'
 import { Box, Text } from '@chakra-ui/react'
 import * as THREE from 'three'
 
@@ -11,7 +11,6 @@ import * as THREE from 'three'
  */
 function AnimatedHexagon() {
   const meshRef = useRef<THREE.Mesh>(null)
-  const geometryRef = useRef<THREE.BufferGeometry>(null)
   
   // Create hexagon geometry once
   const geometry = React.useMemo(() => {
@@ -115,8 +114,7 @@ function AnimatedHexagon() {
 /**
  * FPS Counter Component
  */
-function FPSCounter() {
-  const [fps, setFps] = useState(0)
+function FPSCounter({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) {
   const frameCount = useRef(0)
   const lastTime = useRef(performance.now())
 
@@ -125,13 +123,13 @@ function FPSCounter() {
     const currentTime = performance.now()
     
     if (currentTime - lastTime.current > 1000) {
-      setFps(Math.round((frameCount.current * 1000) / (currentTime - lastTime.current)))
+      onFpsUpdate(Math.round((frameCount.current * 1000) / (currentTime - lastTime.current)))
       frameCount.current = 0
       lastTime.current = currentTime
     }
   })
 
-  return null // FPS is handled in parent component
+  return null
 }
 
 /**
@@ -154,7 +152,7 @@ export default function ThreeJSHexagon() {
         }}
       >
         {/* FPS Counter */}
-        <FPSCounter />
+        <FPSCounter onFpsUpdate={setFps} />
         
         {/* Lighting (not needed for shader material but good to have) */}
         <ambientLight intensity={0.5} />
@@ -169,25 +167,6 @@ export default function ThreeJSHexagon() {
           enableRotate={true}
           autoRotate={false}
         />
-        
-        {/* Update FPS from within Canvas context */}
-        {React.createElement(() => {
-          const frameCount = useRef(0)
-          const lastTime = useRef(performance.now())
-          
-          useFrame(() => {
-            frameCount.current++
-            const currentTime = performance.now()
-            
-            if (currentTime - lastTime.current > 1000) {
-              setFps(Math.round((frameCount.current * 1000) / (currentTime - lastTime.current)))
-              frameCount.current = 0
-              lastTime.current = currentTime
-            }
-          })
-          
-          return null
-        })}
       </Canvas>
       
       {/* FPS Display */}

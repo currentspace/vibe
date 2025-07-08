@@ -184,11 +184,9 @@ export default function WebGLCanvas() {
   const animate = useCallback((
     gl: WebGLRenderingContext, 
     program: WebGLProgram, 
-    buffers: { positionBuffer: WebGLBuffer | null, colorBuffer: WebGLBuffer | null },
-    startTime: number
+    buffers: { positionBuffer: WebGLBuffer | null, colorBuffer: WebGLBuffer | null }
   ) => {
-    const render = (currentTime: number) => {
-      const time = (currentTime - startTime) * 0.001 // Convert to seconds
+    const render = () => {
 
       // Clear the canvas
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
@@ -255,8 +253,7 @@ export default function WebGLCanvas() {
     const buffers = createBuffers(gl)
     
     // Start animation
-    const startTime = performance.now()
-    animate(gl, program, buffers, startTime)
+    animate(gl, program, buffers)
 
     // Cleanup
     return () => {

@@ -65,11 +65,11 @@ export default function ModernWebGL() {
     if (!canvas) return null
 
     // Try WebGL 2 first, then fall back to WebGL 1
-    let gl = canvas.getContext('webgl2') as WebGL2RenderingContext | null
+    let gl: WebGLRenderingContext | WebGL2RenderingContext | null = canvas.getContext('webgl2')
     let isWebGL2 = true
     
     if (!gl) {
-      gl = canvas.getContext('webgl') as WebGLRenderingContext | null
+      gl = canvas.getContext('webgl')
       isWebGL2 = false
     }
 
@@ -207,7 +207,7 @@ export default function ModernWebGL() {
       gl.deleteBuffer(positionBuffer)
       gl.deleteBuffer(colorBuffer)
     }
-  }, [])
+  }, [vertexShaderSource, fragmentShaderSource])
 
   useEffect(() => {
     const cleanup = initWebGL()

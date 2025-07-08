@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
 // Dynamically import the WebGL component to avoid SSR issues
-const WebGLCanvas = dynamic(() => import('@/components/WebGLCanvas'), {
+const ModernWebGL = dynamic(() => import('@/components/ModernWebGL'), {
   ssr: false,
   loading: () => (
     <Box 
@@ -23,18 +23,10 @@ const WebGLCanvas = dynamic(() => import('@/components/WebGLCanvas'), {
   )
 })
 
-const SimpleWebGL = dynamic(() => import('@/components/SimpleWebGL'), {
-  ssr: false
-})
-
-const ModernWebGL = dynamic(() => import('@/components/ModernWebGL'), {
-  ssr: false
-})
-
 export default function WebGLPage() {
   return (
     <Container maxW="container.xl" py={8}>
-      <VStack spacing={8} align="stretch">
+      <VStack gap={8} align="stretch">
         <Box>
           <Heading as="h1" size="2xl" mb={4}>
             WebGL Playground
@@ -63,7 +55,7 @@ export default function WebGLPage() {
           <Text color="gray.600">
             This WebGL component uses modern React patterns including:
           </Text>
-          <VStack align="start" mt={2} spacing={1}>
+          <VStack align="start" mt={2} gap={1}>
             <Text>• React 19 with automatic batching</Text>
             <Text>• useEffect with cleanup for WebGL context</Text>
             <Text>• ResizeObserver for responsive canvas</Text>

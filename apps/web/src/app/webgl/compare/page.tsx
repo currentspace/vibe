@@ -13,7 +13,7 @@ export default function WebGLComparePage() {
 
   return (
     <Container maxW="container.2xl" py={8}>
-      <VStack spacing={8} align="stretch">
+      <VStack gap={8} align="stretch">
         <Box textAlign="center">
           <Heading as="h1" size="2xl" mb={4}>
             WebGL vs Three.js Comparison
@@ -23,7 +23,7 @@ export default function WebGLComparePage() {
           </Text>
         </Box>
 
-        <HStack justify="center" spacing={4}>
+        <HStack justify="center" gap={4}>
           <Button
             onClick={() => setShowComparison(!showComparison)}
             colorScheme="blue"
@@ -35,7 +35,7 @@ export default function WebGLComparePage() {
         {showComparison ? (
           <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={6}>
             <Box>
-              <VStack align="stretch" spacing={4}>
+              <VStack align="stretch" gap={4}>
                 <HStack justify="space-between">
                   <Heading as="h3" size="lg">
                     Pure WebGL
@@ -54,7 +54,7 @@ export default function WebGLComparePage() {
                   <ModernWebGL />
                 </Box>
 
-                <VStack align="start" spacing={2} fontSize="sm">
+                <VStack align="start" gap={2} fontSize="sm">
                   <Text fontWeight="bold">Characteristics:</Text>
                   <Text>• Direct WebGL API calls</Text>
                   <Text>• Manual shader compilation</Text>
@@ -66,7 +66,7 @@ export default function WebGLComparePage() {
             </Box>
 
             <Box>
-              <VStack align="stretch" spacing={4}>
+              <VStack align="stretch" gap={4}>
                 <HStack justify="space-between">
                   <Heading as="h3" size="lg">
                     Three.js (R3F)
@@ -81,19 +81,11 @@ export default function WebGLComparePage() {
                   bg="white"
                   shadow="lg"
                   height="500px"
-                  sx={{
-                    '& .stats-panel': {
-                      position: 'absolute !important',
-                      top: '0 !important',
-                      left: '0 !important',
-                      right: 'auto !important',
-                    }
-                  }}
                 >
                   <ThreeJSHexagon />
                 </Box>
 
-                <VStack align="start" spacing={2} fontSize="sm">
+                <VStack align="start" gap={2} fontSize="sm">
                   <Text fontWeight="bold">Characteristics:</Text>
                   <Text>• React components</Text>
                   <Text>• Automatic resource management</Text>

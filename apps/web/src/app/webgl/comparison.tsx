@@ -12,7 +12,7 @@ export default function WebGLComparison() {
 
   return (
     <Container maxW="container.xl" py={8}>
-      <VStack spacing={8} align="stretch">
+      <VStack gap={8} align="stretch">
         <Box>
           <Heading as="h1" size="2xl" mb={4}>
             WebGL Approaches in React
@@ -22,7 +22,7 @@ export default function WebGLComparison() {
           </Text>
         </Box>
 
-        <HStack spacing={4}>
+        <HStack gap={4}>
           <Button
             onClick={() => setActiveExample('raw')}
             colorScheme={activeExample === 'raw' ? 'blue' : 'gray'}
@@ -48,14 +48,14 @@ export default function WebGLComparison() {
           {activeExample === 'raw' ? <WebGLCanvas /> : <ThreeJSExample />}
         </Box>
 
-        <Stack spacing={6}>
+        <Stack gap={6}>
           {activeExample === 'raw' ? (
             <Box>
               <Heading as="h2" size="lg" mb={4}>
                 Raw WebGL Approach
               </Heading>
               
-              <VStack align="start" spacing={3}>
+              <VStack align="start" gap={3}>
                 <Text fontWeight="bold">Pros:</Text>
                 <Text>✅ Maximum control over rendering pipeline</Text>
                 <Text>✅ Smallest bundle size (~0 dependencies)</Text>
@@ -88,7 +88,7 @@ gl.drawArrays(gl.TRIANGLES, 0, 3)`}</Code>
                 Three.js with React Three Fiber
               </Heading>
               
-              <VStack align="start" spacing={3}>
+              <VStack align="start" gap={3}>
                 <Text fontWeight="bold">Pros:</Text>
                 <Text>✅ Declarative, React-like API</Text>
                 <Text>✅ Huge ecosystem of helpers and plugins</Text>
