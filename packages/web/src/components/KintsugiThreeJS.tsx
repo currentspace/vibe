@@ -106,17 +106,17 @@ function generateBaseCrackData(seed: number, maxCracks: number = 20) {
   }
 
   // Check if a direction is too parallel or perpendicular to existing segments
-  const isProblematicDirection = (pos: THREE.Vector3, dir: THREE.Vector3): boolean => {
-    for (const seg of existingSegments) {
-      // Skip if too far away
-      if (seg.from.distanceTo(pos) > 1.5 && seg.to.distanceTo(pos) > 1.5) continue
-      
-      const dot = Math.abs(dir.dot(seg.dir))
-      // Avoid parallel (dot ≈ 1) or perpendicular (dot ≈ 0)
-      if (dot > 0.85 || dot < 0.15) return true
-    }
-    return false
-  }
+  // const isProblematicDirection = (pos: THREE.Vector3, dir: THREE.Vector3): boolean => {
+  //   for (const seg of existingSegments) {
+  //     // Skip if too far away
+  //     if (seg.from.distanceTo(pos) > 1.5 && seg.to.distanceTo(pos) > 1.5) continue
+  //     
+  //     const dot = Math.abs(dir.dot(seg.dir))
+  //     // Avoid parallel (dot ≈ 1) or perpendicular (dot ≈ 0)
+  //     if (dot > 0.85 || dot < 0.15) return true
+  //   }
+  //   return false
+  // }
 
   // Decide on special crack types
   const hasFractureNest = seededRandom(1234) < 0.2 // 20% chance
@@ -373,7 +373,7 @@ function generateCrackCurves({
     const rawPoints: THREE.Vector3[] = [start]
     let curr = start.clone()
     const mainDirection = end.clone().sub(start).normalize()
-    let lastDir = mainDirection.clone()
+    // let lastDir = mainDirection.clone()
     const totalLen = start.distanceTo(end)
     
     // Track cumulative deviation to prevent doubling back
@@ -457,7 +457,6 @@ function generateCrackCurves({
       
       rawPoints.push(next)
       curr = next
-      lastDir = newDir
     }
     
     rawPoints.push(end)
@@ -960,9 +959,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
   }, [slateTexture, goldTexture, slateNormalMap, goldAlbedo, goldNormal, goldRoughness, goldMetallic, goldAO, goldHeight])
 
   // Generate base crack data only when seed changes
-  const baseCrackData = useMemo(() => {
-    return generateBaseCrackData(randomSeed)
-  }, [randomSeed])
+  // const baseCrackData = useMemo(() => {
+  //   return generateBaseCrackData(randomSeed)
+  // }, [randomSeed])
 
   // Generate crack paths with current parameters applied to base data
   const crackPaths = useMemo(() => {
@@ -972,7 +971,7 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       curviness: params.crackCurviness,
       seed: randomSeed,
     })
-  }, [baseCrackData, params.crackCount, params.branchProbability, params.crackCurviness, randomSeed])
+  }, [params.crackCount, params.branchProbability, params.crackCurviness, randomSeed])
 
   // Generate crack geometries - only re-generate when paths or thickness change
   const crackData = useMemo(() => {
