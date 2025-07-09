@@ -16,5 +16,14 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules", 
+    "dist",
+    "src/cloudflare-worker.ts",
+    "src/worker-from-nodejs.ts",
+    "src/simple-worker.ts",
+    "src/hybrid-worker.ts",
+    "src/workers/**/*",
+    "src/nodejs/**/*"
+  ]
 }

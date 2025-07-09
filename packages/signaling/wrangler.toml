@@ -1,0 +1,29 @@
+# Main configuration - Durable Objects version
+name = "vibe-signaling"
+main = "src/workers/durable-objects.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[durable_objects]
+bindings = [
+  { name = "SIGNALING_ROOMS", class_name = "SignalingRoom" }
+]
+
+[[durable_objects.migrations]]
+tag = "v1"
+new_classes = ["SignalingRoom"]
+
+[vars]
+# Environment variables
+LOG_LEVEL = "info"
+
+# Development environment
+[env.dev]
+name = "vibe-signaling-dev"
+vars = { LOG_LEVEL = "debug" }
+
+# Production environment  
+[env.production]
+name = "vibe-signaling-prod"
+route = { pattern = "signaling.yourdomain.com/*" }
+vars = { LOG_LEVEL = "warn" }

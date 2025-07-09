@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'export',
   compiler: {
     emotion: true,
   },
@@ -9,6 +10,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+  },
+  images: {
+    unoptimized: true,
   },
 };
 

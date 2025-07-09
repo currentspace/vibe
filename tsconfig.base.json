@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@vibe/core": ["./packages/core/src"],
+      "@vibe/core/*": ["./packages/core/src/*"],
+      "@vibe/api": ["./packages/api/src"],
+      "@vibe/api/*": ["./packages/api/src/*"],
+      "@vibe/components": ["./packages/components/src"],
+      "@vibe/components/*": ["./packages/components/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next", "out"]
+}
