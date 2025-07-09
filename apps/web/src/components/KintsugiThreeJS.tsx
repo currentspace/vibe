@@ -3,12 +3,14 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { Canvas, useFrame, useLoader } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { 
   Box as ChakraBox, 
   Text, 
   VStack, 
   HStack,
-  Heading
+  Heading,
+  Box
 } from '@chakra-ui/react'
 import * as THREE from 'three'
 
@@ -25,6 +27,35 @@ interface KintsugiParams {
   ambientIntensity: number
   rotationSpeed: number
   cameraDistance: number
+  bloomIntensity: number
+  bloomThreshold: number
+}
+
+/**
+ * Smooth points using Chaikin's algorithm
+ */
+function smoothPoints(points: THREE.Vector3[], iterations: number = 2): THREE.Vector3[] {
+  let smoothed = points
+  
+  for (let iter = 0; iter < iterations; iter++) {
+    const newPoints: THREE.Vector3[] = [smoothed[0].clone()]
+    
+    for (let i = 0; i < smoothed.length - 1; i++) {
+      const p0 = smoothed[i]
+      const p1 = smoothed[i + 1]
+      
+      // 1/4 and 3/4 points
+      const q = p0.clone().lerp(p1, 0.25)
+      const r = p0.clone().lerp(p1, 0.75)
+      
+      newPoints.push(q, r)
+    }
+    
+    newPoints.push(smoothed[smoothed.length - 1].clone())
+    smoothed = newPoints
+  }
+  
+  return smoothed
 }
 
 /**
@@ -81,7 +112,7 @@ function generateCrackCurves({
     const points: THREE.Vector3[] = [start]
     const widths: number[] = [0.1] // Start thin
     
-    const steps = 20 + Math.floor(Math.random() * 15)
+    const steps = 15 + Math.floor(Math.random() * 10)
     
     for (let j = 1; j < steps; j++) {
       const t = j / (steps - 1)
@@ -113,7 +144,22 @@ function generateCrackCurves({
     points.push(end)
     widths.push(0.1) // End thin
     
-    cracks.push({ points, widths, isBranch: false })
+    // Smooth the points
+    const smoothedPoints = smoothPoints(points, 2)
+    
+    // Adjust widths array to match smoothed points
+    const smoothedWidths: number[] = []
+    const widthStep = widths.length / smoothedPoints.length
+    for (let i = 0; i < smoothedPoints.length; i++) {
+      const widthIdx = Math.min(Math.floor(i * widthStep), widths.length - 1)
+      smoothedWidths.push(widths[widthIdx])
+    }
+    
+    cracks.push({ 
+      points: smoothedPoints, 
+      widths: smoothedWidths, 
+      isBranch: false 
+    })
     
     // Add branches
     if (Math.random() < branchChance) {
@@ -122,13 +168,13 @@ function generateCrackCurves({
       for (let b = 0; b < branchCount; b++) {
         // Pick a point on the main crack to branch from
         const branchT = 0.2 + Math.random() * 0.6 // Avoid edges
-        const branchIndex = Math.floor(branchT * (points.length - 1))
-        const branchStart = points[branchIndex].clone()
-        const parentWidth = widths[branchIndex]
+        const branchIndex = Math.floor(branchT * (smoothedPoints.length - 1))
+        const branchStart = smoothedPoints[branchIndex].clone()
+        const parentWidth = smoothedWidths[branchIndex]
         
         // Determine branch direction
-        const mainDirection = points[Math.min(branchIndex + 1, points.length - 1)]
-          .clone().sub(points[Math.max(branchIndex - 1, 0)]).normalize()
+        const mainDirection = smoothedPoints[Math.min(branchIndex + 1, smoothedPoints.length - 1)]
+          .clone().sub(smoothedPoints[Math.max(branchIndex - 1, 0)]).normalize()
         const branchDirection = new THREE.Vector3(-mainDirection.y, mainDirection.x, 0)
         if (Math.random() > 0.5) branchDirection.multiplyScalar(-1)
         
@@ -145,7 +191,7 @@ function generateCrackCurves({
         const branchPoints: THREE.Vector3[] = [branchStart]
         const branchWidths: number[] = [parentWidth * 0.7] // Start from parent width
         
-        const branchSteps = 10 + Math.floor(Math.random() * 8)
+        const branchSteps = 8 + Math.floor(Math.random() * 5)
         
         for (let j = 1; j < branchSteps; j++) {
           const t = j / (branchSteps - 1)
@@ -169,9 +215,17 @@ function generateCrackCurves({
         branchWidths.push(0.05) // Very thin at end
         
         if (branchPoints.length > 2) {
+          const smoothedBranch = smoothPoints(branchPoints, 1)
+          const smoothedBranchWidths: number[] = []
+          const branchWidthStep = branchWidths.length / smoothedBranch.length
+          for (let i = 0; i < smoothedBranch.length; i++) {
+            const widthIdx = Math.min(Math.floor(i * branchWidthStep), branchWidths.length - 1)
+            smoothedBranchWidths.push(branchWidths[widthIdx])
+          }
+          
           cracks.push({ 
-            points: branchPoints, 
-            widths: branchWidths, 
+            points: smoothedBranch, 
+            widths: smoothedBranchWidths, 
             isBranch: true,
             parentIdx: i,
             branchPoint: branchIndex
@@ -185,7 +239,7 @@ function generateCrackCurves({
 }
 
 /**
- * Create custom geometry for variable-width cracks
+ * Create custom geometry for variable-width cracks with soft edges
  */
 function createCrackGeometry(points: THREE.Vector3[], widths: number[], thickness: number): THREE.BufferGeometry {
   const vertices: number[] = []
@@ -266,7 +320,7 @@ function createCrackGeometry(points: THREE.Vector3[], widths: number[], thicknes
  */
 function KintsugiMesh({ params }: { params: KintsugiParams }) {
   const groupRef = useRef<THREE.Group>(null)
-  const goldMaterialsRef = useRef<THREE.ShaderMaterial[]>([])
+  const sharedMaterialRef = useRef<THREE.ShaderMaterial>(null)
   
   // Load textures
   const [slateTexture, goldTexture] = useLoader(THREE.TextureLoader, [
@@ -299,81 +353,111 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
     }))
   }, [params.crackCount, params.crackThickness, params.branchProbability, params.crackCurviness])
 
-  // Create shader materials for animated gold
-  const goldMaterials = useMemo(() => {
-    goldMaterialsRef.current = crackData.map((_, index) => {
-      return new THREE.ShaderMaterial({
-        uniforms: {
-          goldTexture: { value: goldTexture },
-          time: { value: 0 },
-          flowSpeed: { value: params.goldFlowSpeed },
-          shimmerIntensity: { value: params.goldShimmer },
-          goldIntensity: { value: params.goldIntensity },
-          crackIndex: { value: index }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          varying vec3 vPosition;
+  // Create shared shader material for all cracks
+  const goldMaterial = useMemo(() => {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        goldTexture: { value: goldTexture },
+        time: { value: 0 },
+        flowSpeed: { value: params.goldFlowSpeed },
+        shimmerIntensity: { value: params.goldShimmer },
+        goldIntensity: { value: params.goldIntensity },
+        crackIndices: { value: new Float32Array(crackData.length).map((_, i) => i) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        attribute float crackIndex;
+        varying float vCrackIndex;
+        
+        void main() {
+          vUv = uv;
+          vPosition = position;
+          vCrackIndex = crackIndex;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D goldTexture;
+        uniform float time;
+        uniform float flowSpeed;
+        uniform float shimmerIntensity;
+        uniform float goldIntensity;
+        
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        varying float vCrackIndex;
+        
+        void main() {
+          // Soft edge alpha
+          float edgeAlpha = smoothstep(0.02, 0.15, min(vUv.x, 1.0 - vUv.x));
           
-          void main() {
-            vUv = uv;
-            vPosition = position;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D goldTexture;
-          uniform float time;
-          uniform float flowSpeed;
-          uniform float shimmerIntensity;
-          uniform float goldIntensity;
-          uniform float crackIndex;
+          // Flow animation along crack length
+          vec2 flowUv = vUv;
+          flowUv.y += time * flowSpeed * 0.2;
+          flowUv.x += sin(time * flowSpeed + vUv.y * 10.0) * 0.1;
           
-          varying vec2 vUv;
-          varying vec3 vPosition;
+          // Sample gold texture
+          vec4 gold = texture2D(goldTexture, flowUv);
           
-          void main() {
-            // Flow animation along crack length
-            vec2 flowUv = vUv;
-            flowUv.y += time * flowSpeed * 0.2;
-            flowUv.x += sin(time * flowSpeed + vUv.y * 10.0) * 0.1;
-            
-            // Sample gold texture
-            vec4 gold = texture2D(goldTexture, flowUv);
-            
-            // Lava-like glow
-            float glow = sin(time * 3.0 + vUv.y * 20.0 + crackIndex) * 0.5 + 0.5;
-            glow *= sin(time * 5.0 + vUv.x * 15.0 + vPosition.x * 10.0) * 0.3 + 0.7;
-            
-            // Shimmer waves
-            float shimmer1 = sin(time * 4.0 + vPosition.x * 20.0 + vPosition.y * 20.0) * shimmerIntensity;
-            float shimmer2 = sin(time * 6.0 - vPosition.x * 15.0 + vPosition.y * 25.0) * shimmerIntensity * 0.5;
-            float shimmer = 1.0 + shimmer1 + shimmer2;
-            
-            // Hot spots that move
-            float hotspot = smoothstep(0.3, 0.7, sin(time * 2.0 + vUv.y * 30.0)) * 0.5;
-            
-            // Combine effects
-            vec3 finalColor = gold.rgb * goldIntensity;
-            finalColor *= (glow * 0.5 + 0.5) * shimmer;
-            
-            // Add orange/red tints for lava effect
-            finalColor.r += hotspot * 0.3;
-            finalColor.g += hotspot * 0.1;
-            
-            // Emit light
-            vec3 emission = vec3(1.0, 0.8, 0.4) * goldIntensity * 0.5 * (glow + hotspot);
-            
-            gl_FragColor = vec4(finalColor + emission, 1.0);
-          }
-        `,
-        side: THREE.DoubleSide,
-        transparent: false
-      })
+          // Lava-like glow with crack variation
+          float glow = sin(time * 3.0 + vUv.y * 20.0 + vCrackIndex) * 0.5 + 0.5;
+          glow *= sin(time * 5.0 + vUv.x * 15.0 + vPosition.x * 10.0) * 0.3 + 0.7;
+          
+          // Shimmer waves
+          float shimmer1 = sin(time * 4.0 + vPosition.x * 20.0 + vPosition.y * 20.0) * shimmerIntensity;
+          float shimmer2 = sin(time * 6.0 - vPosition.x * 15.0 + vPosition.y * 25.0) * shimmerIntensity * 0.5;
+          float shimmer = 1.0 + shimmer1 + shimmer2;
+          
+          // Hot spots that move
+          float hotspot = smoothstep(0.3, 0.7, sin(time * 2.0 + vUv.y * 30.0)) * 0.5;
+          
+          // Combine effects
+          vec3 finalColor = gold.rgb * goldIntensity;
+          finalColor *= (glow * 0.5 + 0.5) * shimmer;
+          
+          // Add orange/red tints for lava effect
+          finalColor.r += hotspot * 0.3;
+          finalColor.g += hotspot * 0.1;
+          
+          // Emit light
+          vec3 emission = vec3(1.0, 0.8, 0.4) * goldIntensity * 0.5 * (glow + hotspot);
+          
+          gl_FragColor = vec4(finalColor + emission, edgeAlpha);
+        }
+      `,
+      side: THREE.DoubleSide,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
     })
     
-    return goldMaterialsRef.current
+    sharedMaterialRef.current = material
+    return material
   }, [goldTexture, params.goldFlowSpeed, params.goldShimmer, params.goldIntensity, crackData.length])
+
+  // Update uniforms when params change
+  useEffect(() => {
+    if (sharedMaterialRef.current) {
+      sharedMaterialRef.current.uniforms.flowSpeed.value = params.goldFlowSpeed
+      sharedMaterialRef.current.uniforms.shimmerIntensity.value = params.goldShimmer
+      sharedMaterialRef.current.uniforms.goldIntensity.value = params.goldIntensity
+    }
+  }, [params.goldFlowSpeed, params.goldShimmer, params.goldIntensity])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Dispose geometries
+      crackData.forEach(crack => {
+        crack.geometry.dispose()
+      })
+      // Dispose material
+      if (sharedMaterialRef.current) {
+        sharedMaterialRef.current.dispose()
+      }
+    }
+  }, [crackData])
 
   // Animation loop
   useFrame((state) => {
@@ -382,11 +466,9 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
     const time = state.clock.elapsedTime
     
     // Update shader uniforms
-    goldMaterialsRef.current.forEach(material => {
-      if (material.uniforms.time) {
-        material.uniforms.time.value = time
-      }
-    })
+    if (sharedMaterialRef.current) {
+      sharedMaterialRef.current.uniforms.time.value = time
+    }
     
     // Rotation animation
     groupRef.current.rotation.y += params.rotationSpeed * 0.01
@@ -405,10 +487,10 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
         />
       </mesh>
       
-      {/* Gold cracks */}
+      {/* Gold cracks - single mesh with instancing would be even better for many cracks */}
       {crackData.map((crack, index) => (
         <mesh key={index} geometry={crack.geometry}>
-          <primitive object={goldMaterials[index]} attach="material" />
+          <primitive object={goldMaterial} attach="material" />
         </mesh>
       ))}
       
@@ -503,7 +585,9 @@ export default function KintsugiThreeJS() {
     lightIntensity: 1.0,
     ambientIntensity: 0.6,
     rotationSpeed: 0.0,
-    cameraDistance: 5
+    cameraDistance: 5,
+    bloomIntensity: 1.5,
+    bloomThreshold: 0.3
   })
 
   const updateParam = (key: keyof KintsugiParams) => (value: number) => {
@@ -511,13 +595,13 @@ export default function KintsugiThreeJS() {
   }
 
   return (
-    <HStack width="100%" height="100%" gap={0}>
+    <HStack width="100%" height="100%" gap={0} flexDirection={{ base: 'column', lg: 'row' }}>
       {/* 3D Scene */}
-      <ChakraBox position="relative" flex={1} height="100%">
+      <ChakraBox position="relative" flex={1} height={{ base: '60vh', lg: '100%' }} width="100%">
         <Canvas
           camera={{ position: [0, 0, params.cameraDistance], fov: 50 }}
           style={{ background: '#0a0a0a' }}
-          gl={{ antialias: true }}
+          gl={{ antialias: true, alpha: true }}
         >
           {/* FPS Counter */}
           <FPSCounter onFpsUpdate={setFps} />
@@ -548,6 +632,16 @@ export default function KintsugiThreeJS() {
             minDistance={3}
             maxDistance={10}
           />
+          
+          {/* Post-processing effects */}
+          <EffectComposer>
+            <Bloom 
+              luminanceThreshold={params.bloomThreshold} 
+              luminanceSmoothing={0.9} 
+              intensity={params.bloomIntensity} 
+              radius={0.8}
+            />
+          </EffectComposer>
         </Canvas>
         
         {/* FPS Display */}
@@ -567,8 +661,8 @@ export default function KintsugiThreeJS() {
       
       {/* Parameter Controls */}
       <VStack
-        width="300px"
-        height="100%"
+        width={{ base: '100%', lg: '300px' }}
+        height={{ base: '40vh', lg: '100%' }}
         bg="gray.50"
         p={4}
         overflowY="auto"
@@ -636,6 +730,24 @@ export default function KintsugiThreeJS() {
         </VStack>
         
         <VStack align="stretch" gap={4}>
+          <Heading size="sm">Post-Processing</Heading>
+          <ParamSlider 
+            label="Bloom Intensity" 
+            value={params.bloomIntensity} 
+            onChange={updateParam('bloomIntensity')}
+            min={0}
+            max={3}
+          />
+          <ParamSlider 
+            label="Bloom Threshold" 
+            value={params.bloomThreshold} 
+            onChange={updateParam('bloomThreshold')}
+            min={0}
+            max={1}
+          />
+        </VStack>
+        
+        <VStack align="stretch" gap={4}>
           <Heading size="sm">Lighting</Heading>
           <ParamSlider 
             label="Light Intensity" 
@@ -653,23 +765,25 @@ export default function KintsugiThreeJS() {
           />
         </VStack>
         
-        <VStack align="stretch" gap={4}>
-          <Heading size="sm">Camera & Animation</Heading>
-          <ParamSlider 
-            label="Rotation Speed" 
-            value={params.rotationSpeed} 
-            onChange={updateParam('rotationSpeed')}
-            min={0}
-            max={1}
-          />
-          <ParamSlider 
-            label="Camera Distance" 
-            value={params.cameraDistance} 
-            onChange={updateParam('cameraDistance')}
-            min={3}
-            max={10}
-          />
-        </VStack>
+        <Box display={{ base: 'none', lg: 'block' }}>
+          <VStack align="stretch" gap={4}>
+            <Heading size="sm">Camera & Animation</Heading>
+            <ParamSlider 
+              label="Rotation Speed" 
+              value={params.rotationSpeed} 
+              onChange={updateParam('rotationSpeed')}
+              min={0}
+              max={1}
+            />
+            <ParamSlider 
+              label="Camera Distance" 
+              value={params.cameraDistance} 
+              onChange={updateParam('cameraDistance')}
+              min={3}
+              max={10}
+            />
+          </VStack>
+        </Box>
       </VStack>
     </HStack>
   )

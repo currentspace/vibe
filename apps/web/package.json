@@ -21,6 +21,7 @@
     "@emotion/styled": "^11.14",
     "@react-three/drei": "^9.119",
     "@react-three/fiber": "^9.0",
+    "@react-three/postprocessing": "^3.0.4",
     "next": "15.3",
     "react": "^19.1",
     "react-dom": "^19.1",
