@@ -26,6 +26,8 @@ interface KintsugiParams {
   blobFrequency1: number
   blobFrequency2: number
   textureFlowSpeed: number
+  specularPower: number
+  lateralMotion: number
 }
 
 /**
@@ -186,7 +188,7 @@ function generateCrackCurves({
 
         // Branch end point - try to reach an edge
         const branchLength = 0.5 + Math.random() * 1.5
-        let branchEnd = branchStart.clone().add(branchDirection.multiplyScalar(branchLength))
+        const branchEnd = branchStart.clone().add(branchDirection.multiplyScalar(branchLength))
 
         // Extend branch to reach nearest edge
         const distToEdges = [
@@ -196,12 +198,15 @@ function generateCrackCurves({
           Math.abs(-2.0 - branchEnd.y), // bottom edge
         ]
         const minDist = Math.min(...distToEdges)
-        
+
         // If close to an edge, extend to reach it
         if (minDist < 0.8) {
-          if (distToEdges[0] === minDist) branchEnd.x = 2.0 // right
-          else if (distToEdges[1] === minDist) branchEnd.x = -2.0 // left
-          else if (distToEdges[2] === minDist) branchEnd.y = 2.0 // top
+          if (distToEdges[0] === minDist)
+            branchEnd.x = 2.0 // right
+          else if (distToEdges[1] === minDist)
+            branchEnd.x = -2.0 // left
+          else if (distToEdges[2] === minDist)
+            branchEnd.y = 2.0 // top
           else if (distToEdges[3] === minDist) branchEnd.y = -2.0 // bottom
         } else {
           // Otherwise keep within bounds
@@ -266,82 +271,94 @@ function createCrackRibbonGeometry(
   points: THREE.Vector3[],
   widths: number[],
   thickness: number,
+  phaseOffset: number = 0,
 ): THREE.BufferGeometry {
   const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5)
-  
+
   // Sample more points along the curve for smooth geometry
-  const divisions = Math.max(100, points.length * 8)
+  const divisions = Math.max(30, points.length * 2) // Further reduced for performance
   const curvePoints = curve.getPoints(divisions)
-  
-  // Vertices, normals, and uvs arrays
+
+  // Vertices, normals, uvs, and phase offset arrays
   const vertices: number[] = []
   const normals: number[] = []
   const uvs: number[] = []
+  const phaseOffsets: number[] = []
   const indices: number[] = []
-  
+
   // Create ribbon vertices
   for (let i = 0; i < curvePoints.length; i++) {
     const point = curvePoints[i]
     const t = i / (curvePoints.length - 1)
-    
+
     // Interpolate width based on original width array
     const widthIndex = t * (widths.length - 1)
     const widthIndexLow = Math.floor(widthIndex)
     const widthIndexHigh = Math.min(widthIndexLow + 1, widths.length - 1)
     const widthLerp = widthIndex - widthIndexLow
     const width = widths[widthIndexLow] * (1 - widthLerp) + widths[widthIndexHigh] * widthLerp
-    
+
     // Get tangent for perpendicular calculation
     let tangent: THREE.Vector3
     if (i === 0) {
       tangent = curvePoints[1].clone().sub(curvePoints[0]).normalize()
     } else if (i === curvePoints.length - 1) {
-      tangent = curvePoints[i].clone().sub(curvePoints[i - 1]).normalize()
+      tangent = curvePoints[i]
+        .clone()
+        .sub(curvePoints[i - 1])
+        .normalize()
     } else {
-      tangent = curvePoints[i + 1].clone().sub(curvePoints[i - 1]).normalize()
+      tangent = curvePoints[i + 1]
+        .clone()
+        .sub(curvePoints[i - 1])
+        .normalize()
     }
-    
+
     // Calculate perpendicular in XY plane
     const perp = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize()
-    
+
     // Scale width by thickness
     const halfWidth = width * thickness * 0.045
-    
+
     // Create two vertices (left and right of the curve)
     const left = point.clone().add(perp.clone().multiplyScalar(-halfWidth))
     const right = point.clone().add(perp.clone().multiplyScalar(halfWidth))
-    
+
     // Add vertices
     vertices.push(left.x, left.y, left.z)
     vertices.push(right.x, right.y, right.z)
-    
+
     // Add normals (pointing up from the plane)
     normals.push(0, 0, 1, 0, 0, 1)
-    
+
     // Add UVs
     uvs.push(0, t) // left edge
     uvs.push(1, t) // right edge
-    
+
+    // Add phase offset as attribute (same for both vertices at this point)
+    phaseOffsets.push(phaseOffset, phaseOffset)
+
     // Create faces (except for the last segment)
     if (i < curvePoints.length - 1) {
       const a = i * 2
       const b = i * 2 + 1
       const c = (i + 1) * 2
       const d = (i + 1) * 2 + 1
-      
+
       // Two triangles per segment
       indices.push(a, c, b)
       indices.push(b, c, d)
     }
   }
-  
+
   // Create geometry
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geometry.setAttribute('phaseOffset', new THREE.Float32BufferAttribute(phaseOffsets, 1))
   geometry.setIndex(indices)
-  
+
   return geometry
 }
 
@@ -351,13 +368,28 @@ function createCrackRibbonGeometry(
 function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSeed: number }) {
   const groupRef = useRef<THREE.Group>(null)
   const sharedMaterialRef = useRef<THREE.ShaderMaterial>(null)
-  const goldMaterialsRef = useRef<THREE.ShaderMaterial[]>([])
 
   // Load textures - add placeholder for normal map
-  const [slateTexture, goldTexture, slateNormalMap] = useLoader(THREE.TextureLoader, [
+  const [
+    slateTexture, 
+    goldTexture, 
+    slateNormalMap,
+    goldAlbedo,
+    goldNormal,
+    goldRoughness,
+    goldMetallic,
+    goldAO,
+    goldHeight
+  ] = useLoader(THREE.TextureLoader, [
     '/slate.png',
     '/gold.png',
     '/slate_normal.png',
+    '/hammered-gold-bl/hammered-gold_albedo.png',
+    '/hammered-gold-bl/hammered-gold_normal-ogl.png',
+    '/hammered-gold-bl/hammered-gold_roughness.png',
+    '/hammered-gold-bl/hammered-gold_metallic.png',
+    '/hammered-gold-bl/hammered-gold_ao.png',
+    '/hammered-gold-bl/hammered-gold_height.png',
   ])
 
   // Set texture properties and renderer clipping
@@ -373,7 +405,18 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
 
     // If you add a normal map:
     slateNormalMap.wrapS = slateNormalMap.wrapT = THREE.ClampToEdgeWrapping
-  }, [slateTexture, goldTexture, slateNormalMap])
+    
+    // Set properties for all gold PBR textures
+    const goldTextures = [goldAlbedo, goldNormal, goldRoughness, goldMetallic, goldAO, goldHeight]
+    goldTextures.forEach(tex => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+      tex.repeat.set(2, 2) // Adjust scale as needed
+      tex.magFilter = THREE.LinearFilter
+      tex.minFilter = THREE.LinearMipmapLinearFilter
+      tex.generateMipmaps = true
+      tex.anisotropy = 4 // Reduced from default 16 for performance
+    })
+  }, [slateTexture, goldTexture, slateNormalMap, goldAlbedo, goldNormal, goldRoughness, goldMetallic, goldAO, goldHeight])
 
   // Generate crack geometries
   const crackData = useMemo(() => {
@@ -384,8 +427,8 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       seed: randomSeed,
     })
 
-    return curves.map((crack) => ({
-      geometry: createCrackRibbonGeometry(crack.points, crack.widths, params.crackThickness),
+    return curves.map((crack, index) => ({
+      geometry: createCrackRibbonGeometry(crack.points, crack.widths, params.crackThickness, index * 1.7),
       isBranch: crack.isBranch,
     }))
   }, [
@@ -401,28 +444,48 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     const material = new THREE.ShaderMaterial({
       uniforms: {
         goldTexture: { value: goldTexture },
+        goldAlbedo: { value: goldAlbedo },
+        goldNormal: { value: goldNormal },
+        goldRoughness: { value: goldRoughness },
+        goldMetallic: { value: goldMetallic },
+        goldAO: { value: goldAO },
         time: { value: 0 },
-        flowSpeed: { value: params.goldFlowSpeed },
-        shimmerIntensity: { value: params.goldShimmer },
-        goldIntensity: { value: params.goldIntensity },
-        lavaGlow: { value: params.lavaGlow },
-        flowAnimation: { value: params.goldFlowAnimation },
-        phaseOffset: { value: 0 },
-        flowContrast: { value: params.flowContrast },
-        flowSpeedMultiplier: { value: params.flowSpeedMultiplier },
-        blobFrequency1: { value: params.blobFrequency1 },
-        blobFrequency2: { value: params.blobFrequency2 },
-        textureFlowSpeed: { value: params.textureFlowSpeed },
+        flowSpeed: { value: 0.5 },
+        shimmerIntensity: { value: 0.8 },
+        goldIntensity: { value: 1.5 },
+        lavaGlow: { value: 1.0 },
+        flowAnimation: { value: 1.0 },
+        flowContrast: { value: 0.3 },
+        flowSpeedMultiplier: { value: 1.0 },
+        blobFrequency1: { value: 7.0 },
+        blobFrequency2: { value: 3.0 },
+        textureFlowSpeed: { value: 0.17 },
+        specularPower: { value: 90.0 },
+        lateralMotion: { value: 0.0 },
       },
       vertexShader: `
+        attribute float phaseOffset;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec3 vTangent;
+        varying vec3 vBitangent;
         varying float vCenter;
+        varying float vPhaseOffset;
         
         void main() {
           vUv = uv;
+          vPhaseOffset = phaseOffset;
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
           vWorldPosition = worldPos.xyz;
+          
+          // Transform normal to world space
+          vNormal = normalize(normalMatrix * normal);
+          
+          // Calculate tangent and bitangent for normal mapping
+          vec3 tangent = vec3(1.0, 0.0, 0.0); // Simplified for ribbon geometry
+          vTangent = normalize(normalMatrix * tangent);
+          vBitangent = cross(vNormal, vTangent);
           
           // "vCenter" is distance from ribbon center (0=center, 1=edge)
           vCenter = abs(uv.x - 0.5) * 2.0;
@@ -439,16 +502,26 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
         uniform float goldIntensity;
         uniform float lavaGlow;
         uniform float flowAnimation;
-        uniform float phaseOffset;
         uniform float flowContrast;
         uniform float flowSpeedMultiplier;
         uniform float blobFrequency1;
         uniform float blobFrequency2;
         uniform float textureFlowSpeed;
+        uniform float specularPower;
+        uniform float lateralMotion;
         uniform sampler2D goldTexture;
+        uniform sampler2D goldAlbedo;
+        uniform sampler2D goldNormal;
+        uniform sampler2D goldRoughness;
+        uniform sampler2D goldMetallic;
+        uniform sampler2D goldAO;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec3 vTangent;
+        varying vec3 vBitangent;
         varying float vCenter;
+        varying float vPhaseOffset;
         
         // Big oozing bands (longitudinal noise)
         float bigBands(float t, float time, float freq, float speed, float phase) {
@@ -473,8 +546,8 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
           if (abs(vWorldPosition.x) > 2.0 || abs(vWorldPosition.y) > 2.0) discard;
           
           // Animate large bands of gold sliding down the crack with adjustable parameters
-          float blob = bigBands(vUv.y, time, blobFrequency1, flowSpeed * flowSpeedMultiplier, phaseOffset);
-          float blob2 = bigBands(vUv.y, time, blobFrequency2, flowSpeed * flowSpeedMultiplier * 0.5, 1.3 + phaseOffset * 0.7);
+          float blob = bigBands(vUv.y, time, blobFrequency1, flowSpeed * flowSpeedMultiplier, vPhaseOffset);
+          float blob2 = bigBands(vUv.y, time, blobFrequency2, flowSpeed * flowSpeedMultiplier * 0.5, 1.3 + vPhaseOffset * 0.7);
           
           // Adjustable contrast
           float darkLevel = 1.0 - flowContrast;
@@ -488,22 +561,63 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
           // Animated texture UV - slides down the ribbon
           vec2 texUv = vUv;
           texUv.y += time * textureFlowSpeed;
-          texUv.x += sin(vUv.y * 12.0 + time * flowSpeedMultiplier) * 0.04 * body;
+          
+          // Combine all UV distortions into one calculation
+          float waveDistortion = sin(vUv.y * 12.0 + time * flowSpeedMultiplier) * 0.04 * body
+                               + sin(time * 0.8 + vUv.y * 8.0) * lateralMotion * 0.1;
+          texUv.x += waveDistortion;
+          
+          // Sample original gold texture
           vec3 goldTex = texture2D(goldTexture, texUv).rgb;
           
-          // Core gold color modulated by body with more contrast
-          vec3 gold = goldTex * (goldIntensity * body);
+          // === PHYSICALLY BASED GOLD ===
+          // Use static UV for PBR textures to improve performance
+          vec2 pbrUv = vUv * 2.0; // Scale for texture repeat
           
-          // Add rim lighting at edge - using a simpler calculation
-          float rim = smoothstep(0.3, 0.0, abs(vUv.x - 0.5));
-          gold += vec3(1.2, 1.12, 0.44) * rim * 0.15;
+          // Sample PBR textures with static UVs
+          vec3 albedo = texture2D(goldAlbedo, pbrUv).rgb;
+          vec3 normalMap = texture2D(goldNormal, pbrUv).rgb * 2.0 - 1.0;
+          float roughness = texture2D(goldRoughness, pbrUv).r;
+          float metallic = texture2D(goldMetallic, pbrUv).r;
+          float ao = texture2D(goldAO, pbrUv).r;
           
-          // Optional: bright pulsing center (lava pulse) - faster
+          // Transform normal from tangent space to world space
+          mat3 TBN = mat3(vTangent, vBitangent, vNormal);
+          vec3 N = normalize(TBN * normalMap);
+          
+          // View and light calculations for PBR
+          vec3 V = normalize(cameraPosition - vWorldPosition);
+          vec3 L = normalize(vec3(0.4, 0.6, 1.0)); // Directional light
+          vec3 H = normalize(L + V); // Half vector for Blinn-Phong
+          
+          // Adjust specular based on roughness
+          float adjustedSpecPower = mix(200.0, 10.0, roughness) * (specularPower / 90.0);
+          float spec = pow(max(dot(N, H), 0.0), adjustedSpecPower);
+          
+          // Fresnel effect with metallic influence
+          float fresnel = pow(1.0 - max(dot(V, N), 0.0), 3.0) * (0.5 + metallic * 0.7);
+          
+          // Combine albedo with metallic workflow
+          vec3 goldColor = mix(albedo, albedo * 1.5, metallic);
+          
+          // Base PBR gold with specular and fresnel
+          vec3 gold = goldColor * (0.7 + 0.3 * goldIntensity) * body * ao
+                    + vec3(1.0, 0.95, 0.5) * (spec * (1.0 - roughness) + fresnel * metallic);
+          
+          // === ANIMATED EFFECTS ON TOP OF PBR ===
+          // Add original gold texture for additional detail
+          gold *= mix(vec3(1.0), goldTex, 0.3);
+          
+          // Micro glints (sparkle effect) - reduced frequency for performance
+          float glint = smoothstep(0.98, 1.0, valueNoise(vUv * 90.0 + time * 4.0 + vPhaseOffset));
+          gold += vec3(1.0, 0.95, 0.75) * glint * 0.1;
+          
+          // Lava pulse animation
           float pulse = smoothstep(0.08, 0.01, abs(fract(vUv.y + time * flowSpeed * 0.3) - 0.5));
           gold += vec3(1.4, 1.22, 0.23) * pulse * lavaGlow * 0.22;
           
-          // Simple full opacity - no edge feathering for now
-          gl_FragColor = vec4(gold, 1.0);
+          // Output with gamma correction for realistic lighting
+          gl_FragColor = vec4(pow(gold, vec3(1.0/2.2)), 1.0);
           
           /*
           
@@ -553,33 +667,31 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     return material
   }, [
     goldTexture,
-    params.goldFlowSpeed,
-    params.goldShimmer,
-    params.goldIntensity,
-    params.goldFlowAnimation,
-    params.lavaGlow,
-    params.flowContrast,
-    params.flowSpeedMultiplier,
-    params.blobFrequency1,
-    params.blobFrequency2,
-    params.textureFlowSpeed,
+    goldAlbedo,
+    goldNormal,
+    goldRoughness,
+    goldMetallic,
+    goldAO,
   ])
 
-  // Update uniforms when params change
+  // Update uniforms initially and when params change
   useEffect(() => {
-    if (sharedMaterialRef.current) {
-      sharedMaterialRef.current.uniforms.flowSpeed.value = params.goldFlowSpeed
-      sharedMaterialRef.current.uniforms.shimmerIntensity.value = params.goldShimmer
-      sharedMaterialRef.current.uniforms.goldIntensity.value = params.goldIntensity
-      sharedMaterialRef.current.uniforms.lavaGlow.value = params.lavaGlow
-      sharedMaterialRef.current.uniforms.flowAnimation.value = params.goldFlowAnimation
-      sharedMaterialRef.current.uniforms.flowContrast.value = params.flowContrast
-      sharedMaterialRef.current.uniforms.flowSpeedMultiplier.value = params.flowSpeedMultiplier
-      sharedMaterialRef.current.uniforms.blobFrequency1.value = params.blobFrequency1
-      sharedMaterialRef.current.uniforms.blobFrequency2.value = params.blobFrequency2
-      sharedMaterialRef.current.uniforms.textureFlowSpeed.value = params.textureFlowSpeed
+    if (goldMaterial) {
+      goldMaterial.uniforms.flowSpeed.value = params.goldFlowSpeed
+      goldMaterial.uniforms.shimmerIntensity.value = params.goldShimmer
+      goldMaterial.uniforms.goldIntensity.value = params.goldIntensity
+      goldMaterial.uniforms.lavaGlow.value = params.lavaGlow
+      goldMaterial.uniforms.flowAnimation.value = params.goldFlowAnimation
+      goldMaterial.uniforms.flowContrast.value = params.flowContrast
+      goldMaterial.uniforms.flowSpeedMultiplier.value = params.flowSpeedMultiplier
+      goldMaterial.uniforms.blobFrequency1.value = params.blobFrequency1
+      goldMaterial.uniforms.blobFrequency2.value = params.blobFrequency2
+      goldMaterial.uniforms.textureFlowSpeed.value = params.textureFlowSpeed
+      goldMaterial.uniforms.specularPower.value = params.specularPower
+      goldMaterial.uniforms.lateralMotion.value = params.lateralMotion
     }
   }, [
+    goldMaterial,
     params.goldFlowSpeed,
     params.goldShimmer,
     params.goldIntensity,
@@ -590,6 +702,8 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     params.blobFrequency1,
     params.blobFrequency2,
     params.textureFlowSpeed,
+    params.specularPower,
+    params.lateralMotion,
   ])
 
   // Cleanup on unmount
@@ -612,12 +726,10 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
 
     const time = state.clock.elapsedTime
 
-    // Update time uniform for all cloned materials
-    goldMaterialsRef.current.forEach((material) => {
-      if (material && material.uniforms) {
-        material.uniforms.time.value = time
-      }
-    })
+    // Update time uniform for the shared material
+    if (goldMaterial) {
+      goldMaterial.uniforms.time.value = time
+    }
 
     // No rotation - keep the slate flat
   })
@@ -661,28 +773,14 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       </group>
 
       {/* Gold cracks - positioned flush with slate */}
-      {(() => {
-        // Clear materials array for new render
-        goldMaterialsRef.current = []
-        
-        return crackData.map((crack, index) => {
-          // Clone material and set phase offset for each crack
-          const material = goldMaterial.clone()
-          material.uniforms.phaseOffset.value = index * 1.7
-          
-          // Store reference for animation
-          goldMaterialsRef.current.push(material)
-          
-          // Give each crack a slightly different z-position to prevent z-fighting
-          const zOffset = 0.001 + index * 0.0001
-          
-          return (
-            <mesh key={index} geometry={crack.geometry} position={[0, 0, zOffset]} renderOrder={3}>
-              <primitive object={material} attach="material" />
-            </mesh>
-          )
-        })
-      })()}
+      {crackData.map((crack, index) => {
+        // Give each crack a slightly different z-position to prevent z-fighting
+        const zOffset = 0.001 + index * 0.0001
+
+        return (
+          <mesh key={index} geometry={crack.geometry} material={goldMaterial} position={[0, 0, zOffset]} renderOrder={3} />
+        )
+      })}
 
       {/* Bloom lighting for gold glow */}
       <pointLight position={[0, 0, 1]} intensity={params.goldIntensity * 0.5} color="#ffaa44" />
@@ -783,6 +881,8 @@ export default function KintsugiThreeJS() {
     blobFrequency1: 7.0,
     blobFrequency2: 3.0,
     textureFlowSpeed: 0.5,
+    specularPower: 90.0,
+    lateralMotion: 0.2,
   })
 
   const updateParam = (key: keyof KintsugiParams) => (value: number) => {
@@ -931,6 +1031,14 @@ export default function KintsugiThreeJS() {
             min={0}
             max={0.5}
           />
+          <ParamSlider
+            label="Metallic Shine"
+            value={params.specularPower}
+            onChange={updateParam('specularPower')}
+            min={10}
+            max={200}
+            step={5}
+          />
         </VStack>
 
         <VStack align="stretch" gap={4}>
@@ -973,6 +1081,14 @@ export default function KintsugiThreeJS() {
             onChange={updateParam('textureFlowSpeed')}
             min={0}
             max={2}
+            step={0.05}
+          />
+          <ParamSlider
+            label="Lateral Wave Motion"
+            value={params.lateralMotion}
+            onChange={updateParam('lateralMotion')}
+            min={0}
+            max={1}
             step={0.05}
           />
         </VStack>
