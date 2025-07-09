@@ -13,7 +13,7 @@ export interface Participant {
   id: string
   connectionId: string
   joinedAt: Date
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface SignalingMessage {
@@ -21,7 +21,7 @@ export interface SignalingMessage {
   roomId?: string
   userId?: string
   targetUserId?: string
-  data?: any
+  data?: unknown
 }
 
 export type MessageType = 
@@ -38,7 +38,7 @@ export type MessageType =
 
 export interface SignalingEvent {
   type: MessageType
-  payload: any
+  payload: unknown
   sender?: string
   timestamp: Date
 }

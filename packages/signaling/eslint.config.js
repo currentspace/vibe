@@ -3,6 +3,17 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin')
 const tsParser = require('@typescript-eslint/parser')
 
 module.exports = [
+  {
+    ignores: [
+      'dist/**',
+      'src/cloudflare-worker.ts',
+      'src/worker-from-nodejs.ts', 
+      'src/simple-worker.ts',
+      'src/hybrid-worker.ts',
+      'src/workers/**/*',
+      'src/nodejs/**/*'
+    ]
+  },
   js.configs.recommended,
   {
     files: ['**/*.ts'],
@@ -19,6 +30,8 @@ module.exports = [
         Buffer: 'readonly',
         __dirname: 'readonly',
         __filename: 'readonly',
+        WebSocket: 'readonly',
+        crypto: 'readonly',
       },
     },
     plugins: {

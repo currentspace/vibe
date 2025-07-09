@@ -8,8 +8,7 @@ import {
   Participant, 
   SignalingMessage, 
   ConnectionAdapter, 
-  StorageAdapter,
-  MessageType 
+  StorageAdapter
 } from '@vibe/core'
 
 export class SignalingCore {
@@ -172,7 +171,7 @@ export class SignalingCore {
     connectionId: string,
     message: SignalingMessage
   ): Promise<void> {
-    const { roomId, userId, targetUserId, type, data } = message
+    const { roomId, targetUserId, type, data } = message
     
     if (!roomId) {
       this.sendError(connectionId, 'Room ID is required')
