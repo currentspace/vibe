@@ -18,10 +18,14 @@ interface KintsugiParams {
   crackCurviness: number
   branchProbability: number
   ambientIntensity: number
-  cameraDistance: number
   bloomIntensity: number
   bloomThreshold: number
   lavaGlow: number
+  flowContrast: number
+  flowSpeedMultiplier: number
+  blobFrequency1: number
+  blobFrequency2: number
+  textureFlowSpeed: number
 }
 
 /**
@@ -347,6 +351,7 @@ function createCrackRibbonGeometry(
 function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSeed: number }) {
   const groupRef = useRef<THREE.Group>(null)
   const sharedMaterialRef = useRef<THREE.ShaderMaterial>(null)
+  const goldMaterialsRef = useRef<THREE.ShaderMaterial[]>([])
 
   // Load textures - add placeholder for normal map
   const [slateTexture, goldTexture, slateNormalMap] = useLoader(THREE.TextureLoader, [
@@ -402,7 +407,12 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
         goldIntensity: { value: params.goldIntensity },
         lavaGlow: { value: params.lavaGlow },
         flowAnimation: { value: params.goldFlowAnimation },
-        crackIndices: { value: new Float32Array(crackData.length).map((_, i) => i) },
+        phaseOffset: { value: 0 },
+        flowContrast: { value: params.flowContrast },
+        flowSpeedMultiplier: { value: params.flowSpeedMultiplier },
+        blobFrequency1: { value: params.blobFrequency1 },
+        blobFrequency2: { value: params.blobFrequency2 },
+        textureFlowSpeed: { value: params.textureFlowSpeed },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -422,22 +432,35 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       `,
       fragmentShader: `
         precision highp float;
+        
         uniform float time;
         uniform float flowSpeed;
         uniform float shimmerIntensity;
         uniform float goldIntensity;
         uniform float lavaGlow;
         uniform float flowAnimation;
+        uniform float phaseOffset;
+        uniform float flowContrast;
+        uniform float flowSpeedMultiplier;
+        uniform float blobFrequency1;
+        uniform float blobFrequency2;
+        uniform float textureFlowSpeed;
         uniform sampler2D goldTexture;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
         varying float vCenter;
         
-        // 2D value noise for "thick" flow
+        // Big oozing bands (longitudinal noise)
+        float bigBands(float t, float time, float freq, float speed, float phase) {
+          float band = sin(t * freq + time * speed + phase);
+          // Soft, thick band
+          return smoothstep(0.3, 1.0, band);
+        }
+        
+        // Micro surface detail noise
         float valueNoise(vec2 p) {
           vec2 i = floor(p);
           vec2 f = fract(p);
-          // Four corners in 2D of a tile
           float a = fract(sin(dot(i, vec2(127.1,311.7))) * 43758.5453);
           float b = fract(sin(dot(i+vec2(1.0,0.0), vec2(127.1,311.7))) * 43758.5453);
           float c = fract(sin(dot(i+vec2(0.0,1.0), vec2(127.1,311.7))) * 43758.5453);
@@ -447,60 +470,83 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
         }
         
         void main() {
-          // Discard fragments outside slate bounds
           if (abs(vWorldPosition.x) > 2.0 || abs(vWorldPosition.y) > 2.0) discard;
           
-          // Animate "gold" flow with noise for ooze
-          float noiseVal = valueNoise(vUv * 9.0 + vec2(time * flowSpeed * 0.7, time * 0.13));
-          float thickness = mix(0.85, 1.15, noiseVal); // Some "body" variation
+          // Animate large bands of gold sliding down the crack with adjustable parameters
+          float blob = bigBands(vUv.y, time, blobFrequency1, flowSpeed * flowSpeedMultiplier, phaseOffset);
+          float blob2 = bigBands(vUv.y, time, blobFrequency2, flowSpeed * flowSpeedMultiplier * 0.5, 1.3 + phaseOffset * 0.7);
           
-          // Flow texture with subtle wave and noise for liquid look
+          // Adjustable contrast
+          float darkLevel = 1.0 - flowContrast;
+          float brightLevel = 1.0 + flowContrast;
+          float body = mix(darkLevel, brightLevel, 0.7 * blob + 0.3 * blob2);
+          
+          // Bump noise, moves at different speed for "surface"
+          float microBump = valueNoise(vUv * 11.0 + vec2(0.0, time * flowSpeed * flowSpeedMultiplier * 0.2));
+          body *= (0.92 + 0.13 * microBump);
+          
+          // Animated texture UV - slides down the ribbon
           vec2 texUv = vUv;
-          texUv.x += sin(vUv.y * 8.0 + time * 1.2) * 0.08 * thickness;
-          texUv.y += time * flowSpeed * (0.05 + 0.07 * noiseVal);
-          
-          // Gold base (texture gives micro surface detail)
+          texUv.y += time * textureFlowSpeed;
+          texUv.x += sin(vUv.y * 12.0 + time * flowSpeedMultiplier) * 0.04 * body;
           vec3 goldTex = texture2D(goldTexture, texUv).rgb;
-          vec3 gold = goldTex * goldIntensity * thickness;
           
-          // Edge shimmer based on distance from center
-          float edgeShimmer = smoothstep(0.5, 0.9, vCenter) * (0.18 + 0.2 * shimmerIntensity);
-          vec3 sheenColor = mix(vec3(0.85,0.80,0.35), vec3(0.48,0.36,0.8), edgeShimmer);
-          gold += sheenColor * edgeShimmer * 0.5;
+          // Core gold color modulated by body with more contrast
+          vec3 gold = goldTex * (goldIntensity * body);
           
-          // Add a fake SSS "thickness" highlight in the center
-          float sss = smoothstep(0.27, 0.0, vCenter) * 0.6; // center is thicker
-          gold += vec3(1.0, 0.89, 0.66) * sss * 0.12;
+          // Add rim lighting at edge - using a simpler calculation
+          float rim = smoothstep(0.3, 0.0, abs(vUv.x - 0.5));
+          gold += vec3(1.2, 1.12, 0.44) * rim * 0.15;
           
-          // Lava pulse: only a thin band moves, not everything glowing
-          float pulseCenter = mod(time * flowSpeed * 0.22, 1.0);
-          float bandWidth = 0.16 + 0.07 * sin(time * 0.9);
-          float pulse = exp(-pow((vUv.y - pulseCenter) / bandWidth, 2.0));
-          float trail = smoothstep(0.11, 0.0, vUv.y - pulseCenter);
+          // Optional: bright pulsing center (lava pulse) - faster
+          float pulse = smoothstep(0.08, 0.01, abs(fract(vUv.y + time * flowSpeed * 0.3) - 0.5));
+          gold += vec3(1.4, 1.22, 0.23) * pulse * lavaGlow * 0.22;
           
-          // Animate pulse to "blob" around
-          float moltenPulse = pulse * (0.7 + 0.2 * noiseVal);
-          gold += vec3(1.4, 1.15, 0.13) * moltenPulse * lavaGlow * 0.33;
-          gold += vec3(1.0, 0.75, 0.10) * trail * lavaGlow * 0.09;
+          // Simple full opacity - no edge feathering for now
+          gl_FragColor = vec4(gold, 1.0);
           
-          // Radial highlight for tube volume (makes it look round/thick)
-          float radial = 1.0 - smoothstep(0.21, 0.43, abs(vUv.x - 0.5));
-          gold *= (0.90 + 0.18 * radial);
+          /*
           
-          // Subtle bumpiness (multiplied by noise again)
-          float bump = valueNoise(vUv * 19.0 + time * 0.18) * 0.14;
-          gold *= (1.0 + bump);
+          // Animate large bands of gold sliding down the crack
+          float blob = bigBands(vUv.y, time, 7.0, flowSpeed * 1.2, phaseOffset);
+          float blob2 = bigBands(vUv.y, time, 3.0, flowSpeed * 0.4, 1.3 + phaseOffset * 0.7);
           
-          // Soft edge alpha, slightly feathered
-          float edgeAlpha = smoothstep(0.09, 0.41, radial) * (0.96 - 0.18 * vCenter);
+          float body = mix(0.8, 1.35, 0.7 * blob + 0.3 * blob2);
           
+          // Bump noise, moves at different speed for "surface"
+          float microBump = valueNoise(vUv * 11.0 + vec2(0.0, time * flowSpeed * 0.23));
+          body *= (0.92 + 0.13 * microBump);
+          
+          // Animated texture UV - slides down the ribbon
+          vec2 texUv = vUv;
+          texUv.y += time * flowSpeed * 0.17;
+          texUv.x += sin(vUv.y * 12.0 + time) * 0.04 * body;
+          vec3 goldTex = texture2D(goldTexture, texUv).rgb;
+          
+          // Core gold color modulated by body
+          vec3 gold = goldTex * (goldIntensity * body);
+          
+          // Add rim lighting at edge
+          float rim = pow(1.0 - abs(vCenter), 3.5);
+          gold += vec3(1.2, 1.12, 0.44) * rim * 0.09;
+          
+          // Optional: bright pulsing center (lava pulse)
+          float pulse = smoothstep(0.08, 0.01, abs(fract(vUv.y + time * flowSpeed * 0.07) - 0.5));
+          gold += vec3(1.4, 1.22, 0.23) * pulse * lavaGlow * 0.22;
+          
+          // Edge alpha feather
+          float edgeAlpha = smoothstep(0.18, 0.41, 1.0 - abs(vCenter));
           gl_FragColor = vec4(gold, edgeAlpha);
+          */
         }
       `,
       side: THREE.DoubleSide,
       transparent: true,
       depthWrite: true,
       blending: THREE.NormalBlending,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     })
 
     sharedMaterialRef.current = material
@@ -512,7 +558,11 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     params.goldIntensity,
     params.goldFlowAnimation,
     params.lavaGlow,
-    crackData.length,
+    params.flowContrast,
+    params.flowSpeedMultiplier,
+    params.blobFrequency1,
+    params.blobFrequency2,
+    params.textureFlowSpeed,
   ])
 
   // Update uniforms when params change
@@ -523,6 +573,11 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       sharedMaterialRef.current.uniforms.goldIntensity.value = params.goldIntensity
       sharedMaterialRef.current.uniforms.lavaGlow.value = params.lavaGlow
       sharedMaterialRef.current.uniforms.flowAnimation.value = params.goldFlowAnimation
+      sharedMaterialRef.current.uniforms.flowContrast.value = params.flowContrast
+      sharedMaterialRef.current.uniforms.flowSpeedMultiplier.value = params.flowSpeedMultiplier
+      sharedMaterialRef.current.uniforms.blobFrequency1.value = params.blobFrequency1
+      sharedMaterialRef.current.uniforms.blobFrequency2.value = params.blobFrequency2
+      sharedMaterialRef.current.uniforms.textureFlowSpeed.value = params.textureFlowSpeed
     }
   }, [
     params.goldFlowSpeed,
@@ -530,6 +585,11 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     params.goldIntensity,
     params.lavaGlow,
     params.goldFlowAnimation,
+    params.flowContrast,
+    params.flowSpeedMultiplier,
+    params.blobFrequency1,
+    params.blobFrequency2,
+    params.textureFlowSpeed,
   ])
 
   // Cleanup on unmount
@@ -552,10 +612,12 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
 
     const time = state.clock.elapsedTime
 
-    // Update shader uniforms
-    if (sharedMaterialRef.current) {
-      sharedMaterialRef.current.uniforms.time.value = time
-    }
+    // Update time uniform for all cloned materials
+    goldMaterialsRef.current.forEach((material) => {
+      if (material && material.uniforms) {
+        material.uniforms.time.value = time
+      }
+    })
 
     // No rotation - keep the slate flat
   })
@@ -599,11 +661,28 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       </group>
 
       {/* Gold cracks - positioned flush with slate */}
-      {crackData.map((crack, index) => (
-        <mesh key={index} geometry={crack.geometry} position={[0, 0, 0.001]} renderOrder={3}>
-          <primitive object={goldMaterial} attach="material" />
-        </mesh>
-      ))}
+      {(() => {
+        // Clear materials array for new render
+        goldMaterialsRef.current = []
+        
+        return crackData.map((crack, index) => {
+          // Clone material and set phase offset for each crack
+          const material = goldMaterial.clone()
+          material.uniforms.phaseOffset.value = index * 1.7
+          
+          // Store reference for animation
+          goldMaterialsRef.current.push(material)
+          
+          // Give each crack a slightly different z-position to prevent z-fighting
+          const zOffset = 0.001 + index * 0.0001
+          
+          return (
+            <mesh key={index} geometry={crack.geometry} position={[0, 0, zOffset]} renderOrder={3}>
+              <primitive object={material} attach="material" />
+            </mesh>
+          )
+        })
+      })()}
 
       {/* Bloom lighting for gold glow */}
       <pointLight position={[0, 0, 1]} intensity={params.goldIntensity * 0.5} color="#ffaa44" />
@@ -696,10 +775,14 @@ export default function KintsugiThreeJS() {
     crackCurviness: 0.7,
     branchProbability: 0.4,
     ambientIntensity: 0.5,
-    cameraDistance: 5,
     bloomIntensity: 2.0,
     bloomThreshold: 0.1,
     lavaGlow: 1.5,
+    flowContrast: 0.5,
+    flowSpeedMultiplier: 3.0,
+    blobFrequency1: 7.0,
+    blobFrequency2: 3.0,
+    textureFlowSpeed: 0.5,
   })
 
   const updateParam = (key: keyof KintsugiParams) => (value: number) => {
@@ -711,7 +794,7 @@ export default function KintsugiThreeJS() {
       {/* 3D Scene */}
       <ChakraBox position="relative" flex={1} height={{ base: '60vh', lg: '100%' }} width="100%">
         <Canvas
-          camera={{ position: [0, 0, params.cameraDistance], fov: 50 }}
+          camera={{ position: [0, 0, 5], fov: 50 }}
           style={{ background: '#000000' }}
           gl={{
             antialias: true,
@@ -842,18 +925,55 @@ export default function KintsugiThreeJS() {
             max={3}
           />
           <ParamSlider
-            label="Flow Animation"
-            value={params.goldFlowAnimation}
-            onChange={updateParam('goldFlowAnimation')}
-            min={0}
-            max={2}
-          />
-          <ParamSlider
             label="Shimmer"
             value={params.goldShimmer}
             onChange={updateParam('goldShimmer')}
             min={0}
             max={0.5}
+          />
+        </VStack>
+
+        <VStack align="stretch" gap={4}>
+          <Heading size="sm">Flow Animation</Heading>
+          <ParamSlider
+            label="Flow Contrast"
+            value={params.flowContrast}
+            onChange={updateParam('flowContrast')}
+            min={0}
+            max={1}
+            step={0.05}
+          />
+          <ParamSlider
+            label="Flow Speed Multiplier"
+            value={params.flowSpeedMultiplier}
+            onChange={updateParam('flowSpeedMultiplier')}
+            min={0.5}
+            max={5}
+            step={0.1}
+          />
+          <ParamSlider
+            label="Blob Frequency 1"
+            value={params.blobFrequency1}
+            onChange={updateParam('blobFrequency1')}
+            min={1}
+            max={15}
+            step={0.5}
+          />
+          <ParamSlider
+            label="Blob Frequency 2"
+            value={params.blobFrequency2}
+            onChange={updateParam('blobFrequency2')}
+            min={1}
+            max={10}
+            step={0.5}
+          />
+          <ParamSlider
+            label="Texture Flow Speed"
+            value={params.textureFlowSpeed}
+            onChange={updateParam('textureFlowSpeed')}
+            min={0}
+            max={2}
+            step={0.05}
           />
         </VStack>
 
@@ -883,13 +1003,6 @@ export default function KintsugiThreeJS() {
             onChange={updateParam('ambientIntensity')}
             min={0.3}
             max={1}
-          />
-          <ParamSlider
-            label="Camera Distance"
-            value={params.cameraDistance}
-            onChange={updateParam('cameraDistance')}
-            min={3}
-            max={8}
           />
         </VStack>
       </VStack>
