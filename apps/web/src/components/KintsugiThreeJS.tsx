@@ -78,20 +78,20 @@ function generateCrackCurves({
     branchPoint?: number
   }> = []
 
-  // Helper to get edge point
+  // Helper to get edge point - ensure points are exactly on the edge
   const getEdgePoint = (t: number): THREE.Vector3 => {
     const edge = Math.floor(t * 4)
     const edgeT = (t * 4) % 1
 
     switch (edge) {
       case 0: // top edge
-        return new THREE.Vector3(-1.99 + edgeT * 3.98, 1.99, 0.01)
+        return new THREE.Vector3(-2.0 + edgeT * 4.0, 2.0, 0)
       case 1: // right edge
-        return new THREE.Vector3(1.99, 1.99 - edgeT * 3.98, 0.01)
+        return new THREE.Vector3(2.0, 2.0 - edgeT * 4.0, 0)
       case 2: // bottom edge
-        return new THREE.Vector3(1.99 - edgeT * 3.98, -1.99, 0.01)
+        return new THREE.Vector3(2.0 - edgeT * 4.0, -2.0, 0)
       default: // left edge
-        return new THREE.Vector3(-1.99, -1.99 + edgeT * 3.98, 0.01)
+        return new THREE.Vector3(-2.0, -2.0 + edgeT * 4.0, 0)
     }
   }
 
@@ -110,7 +110,7 @@ function generateCrackCurves({
 
     // Generate path from start to end
     const points: THREE.Vector3[] = [start]
-    const widths: number[] = [0.1] // Start thin
+    const widths: number[] = [0.0] // Start at zero width for sharp point
 
     const steps = 15 + Math.floor(Math.random() * 10)
 
@@ -142,7 +142,7 @@ function generateCrackCurves({
     }
 
     points.push(end)
-    widths.push(0.1) // End thin
+    widths.push(0.0) // End at zero width for sharp point
 
     // Smooth the points
     const smoothedPoints = smoothPoints(points, 2)
@@ -180,13 +180,30 @@ function generateCrackCurves({
         const branchDirection = new THREE.Vector3(-mainDirection.y, mainDirection.x, 0)
         if (Math.random() > 0.5) branchDirection.multiplyScalar(-1)
 
-        // Branch end point
+        // Branch end point - try to reach an edge
         const branchLength = 0.5 + Math.random() * 1.5
-        const branchEnd = branchStart.clone().add(branchDirection.multiplyScalar(branchLength))
+        let branchEnd = branchStart.clone().add(branchDirection.multiplyScalar(branchLength))
 
-        // Keep within bounds
-        branchEnd.x = Math.max(-1.99, Math.min(1.99, branchEnd.x))
-        branchEnd.y = Math.max(-1.99, Math.min(1.99, branchEnd.y))
+        // Extend branch to reach nearest edge
+        const distToEdges = [
+          Math.abs(2.0 - branchEnd.x), // right edge
+          Math.abs(-2.0 - branchEnd.x), // left edge
+          Math.abs(2.0 - branchEnd.y), // top edge
+          Math.abs(-2.0 - branchEnd.y), // bottom edge
+        ]
+        const minDist = Math.min(...distToEdges)
+        
+        // If close to an edge, extend to reach it
+        if (minDist < 0.8) {
+          if (distToEdges[0] === minDist) branchEnd.x = 2.0 // right
+          else if (distToEdges[1] === minDist) branchEnd.x = -2.0 // left
+          else if (distToEdges[2] === minDist) branchEnd.y = 2.0 // top
+          else if (distToEdges[3] === minDist) branchEnd.y = -2.0 // bottom
+        } else {
+          // Otherwise keep within bounds
+          branchEnd.x = Math.max(-2.0, Math.min(2.0, branchEnd.x))
+          branchEnd.y = Math.max(-2.0, Math.min(2.0, branchEnd.y))
+        }
 
         const branchPoints: THREE.Vector3[] = [branchStart]
         const branchWidths: number[] = [parentWidth * 0.7] // Start from parent width
@@ -212,7 +229,7 @@ function generateCrackCurves({
         }
 
         branchPoints.push(branchEnd)
-        branchWidths.push(0.05) // Very thin at end
+        branchWidths.push(0.0) // Zero width at end for sharp point
 
         if (branchPoints.length > 2) {
           const smoothedBranch = smoothPoints(branchPoints, 1)
@@ -239,89 +256,88 @@ function generateCrackCurves({
 }
 
 /**
- * Create custom geometry for variable-width cracks with soft edges
+ * Create custom ribbon geometry that properly tapers to points
  */
-function createCrackGeometry(
+function createCrackRibbonGeometry(
   points: THREE.Vector3[],
   widths: number[],
   thickness: number,
 ): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5)
+  
+  // Sample more points along the curve for smooth geometry
+  const divisions = Math.max(100, points.length * 8)
+  const curvePoints = curve.getPoints(divisions)
+  
+  // Vertices, normals, and uvs arrays
   const vertices: number[] = []
   const normals: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
-
-  // Generate ribbon geometry
-  let totalLength = 0
-  const lengths: number[] = [0]
-
-  for (let i = 1; i < points.length; i++) {
-    const segmentLength = points[i].distanceTo(points[i - 1])
-    totalLength += segmentLength
-    lengths.push(totalLength)
-  }
-
-  // Create vertices along the crack
-  for (let i = 0; i < points.length; i++) {
-    const t = lengths[i] / totalLength
-    const width = widths[i] * thickness * 0.03
-
-    // Calculate perpendicular direction
-    let direction: THREE.Vector3
+  
+  // Create ribbon vertices
+  for (let i = 0; i < curvePoints.length; i++) {
+    const point = curvePoints[i]
+    const t = i / (curvePoints.length - 1)
+    
+    // Interpolate width based on original width array
+    const widthIndex = t * (widths.length - 1)
+    const widthIndexLow = Math.floor(widthIndex)
+    const widthIndexHigh = Math.min(widthIndexLow + 1, widths.length - 1)
+    const widthLerp = widthIndex - widthIndexLow
+    const width = widths[widthIndexLow] * (1 - widthLerp) + widths[widthIndexHigh] * widthLerp
+    
+    // Get tangent for perpendicular calculation
+    let tangent: THREE.Vector3
     if (i === 0) {
-      direction = points[1].clone().sub(points[0]).normalize()
-    } else if (i === points.length - 1) {
-      direction = points[i]
-        .clone()
-        .sub(points[i - 1])
-        .normalize()
+      tangent = curvePoints[1].clone().sub(curvePoints[0]).normalize()
+    } else if (i === curvePoints.length - 1) {
+      tangent = curvePoints[i].clone().sub(curvePoints[i - 1]).normalize()
     } else {
-      const prev = points[i]
-        .clone()
-        .sub(points[i - 1])
-        .normalize()
-      const next = points[i + 1].clone().sub(points[i]).normalize()
-      direction = prev.add(next).normalize()
+      tangent = curvePoints[i + 1].clone().sub(curvePoints[i - 1]).normalize()
     }
-
-    const perpendicular = new THREE.Vector3(-direction.y, direction.x, 0)
-
-    // Left vertex
-    vertices.push(
-      points[i].x - perpendicular.x * width,
-      points[i].y - perpendicular.y * width,
-      points[i].z,
-    )
-    normals.push(0, 0, 1)
-    uvs.push(0, t)
-
-    // Right vertex
-    vertices.push(
-      points[i].x + perpendicular.x * width,
-      points[i].y + perpendicular.y * width,
-      points[i].z,
-    )
-    normals.push(0, 0, 1)
-    uvs.push(1, t)
+    
+    // Calculate perpendicular in XY plane
+    const perp = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize()
+    
+    // Scale width by thickness
+    const halfWidth = width * thickness * 0.045
+    
+    // Create two vertices (left and right of the curve)
+    const left = point.clone().add(perp.clone().multiplyScalar(-halfWidth))
+    const right = point.clone().add(perp.clone().multiplyScalar(halfWidth))
+    
+    // Add vertices
+    vertices.push(left.x, left.y, left.z)
+    vertices.push(right.x, right.y, right.z)
+    
+    // Add normals (pointing up from the plane)
+    normals.push(0, 0, 1, 0, 0, 1)
+    
+    // Add UVs
+    uvs.push(0, t) // left edge
+    uvs.push(1, t) // right edge
+    
+    // Create faces (except for the last segment)
+    if (i < curvePoints.length - 1) {
+      const a = i * 2
+      const b = i * 2 + 1
+      const c = (i + 1) * 2
+      const d = (i + 1) * 2 + 1
+      
+      // Two triangles per segment
+      indices.push(a, c, b)
+      indices.push(b, c, d)
+    }
   }
-
-  // Create triangles
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = i * 2
-    const b = i * 2 + 1
-    const c = (i + 1) * 2
-    const d = (i + 1) * 2 + 1
-
-    indices.push(a, c, b)
-    indices.push(b, c, d)
-  }
-
+  
+  // Create geometry
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
   geometry.setIndex(indices)
-
+  
   return geometry
 }
 
@@ -364,7 +380,7 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     })
 
     return curves.map((crack) => ({
-      geometry: createCrackGeometry(crack.points, crack.widths, params.crackThickness),
+      geometry: createCrackRibbonGeometry(crack.points, crack.widths, params.crackThickness),
       isBranch: crack.isBranch,
     }))
   }, [
@@ -390,81 +406,101 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       },
       vertexShader: `
         varying vec2 vUv;
-        varying vec3 vPosition;
-        attribute float crackIndex;
-        varying float vCrackIndex;
+        varying vec3 vWorldPosition;
+        varying float vCenter;
         
         void main() {
           vUv = uv;
-          vPosition = position;
-          vCrackIndex = crackIndex;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          
+          // "vCenter" is distance from ribbon center (0=center, 1=edge)
+          vCenter = abs(uv.x - 0.5) * 2.0;
+          
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
       fragmentShader: `
-        uniform sampler2D goldTexture;
+        precision highp float;
         uniform float time;
         uniform float flowSpeed;
         uniform float shimmerIntensity;
         uniform float goldIntensity;
         uniform float lavaGlow;
         uniform float flowAnimation;
-        
+        uniform sampler2D goldTexture;
         varying vec2 vUv;
-        varying vec3 vPosition;
-        varying float vCrackIndex;
+        varying vec3 vWorldPosition;
+        varying float vCenter;
+        
+        // 2D value noise for "thick" flow
+        float valueNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          // Four corners in 2D of a tile
+          float a = fract(sin(dot(i, vec2(127.1,311.7))) * 43758.5453);
+          float b = fract(sin(dot(i+vec2(1.0,0.0), vec2(127.1,311.7))) * 43758.5453);
+          float c = fract(sin(dot(i+vec2(0.0,1.0), vec2(127.1,311.7))) * 43758.5453);
+          float d = fract(sin(dot(i+vec2(1.0,1.0), vec2(127.1,311.7))) * 43758.5453);
+          vec2 u = f*f*(3.0-2.0*f);
+          return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+        }
         
         void main() {
-          // CLIP: Discard fragments outside slate bounds
-          if (abs(vPosition.x) > 2.0 || abs(vPosition.y) > 2.0) discard;
+          // Discard fragments outside slate bounds
+          if (abs(vWorldPosition.x) > 2.0 || abs(vWorldPosition.y) > 2.0) discard;
           
-          // Soft edge alpha - increased feather
-          float edgeAlpha = smoothstep(0.02, 0.2, min(vUv.x, 1.0 - vUv.x));
+          // Animate "gold" flow with noise for ooze
+          float noiseVal = valueNoise(vUv * 9.0 + vec2(time * flowSpeed * 0.7, time * 0.13));
+          float thickness = mix(0.85, 1.15, noiseVal); // Some "body" variation
           
-          // Subtle texture scroll for base pattern
-          vec2 flowUv = vUv;
-          flowUv.y += time * flowSpeed * 0.05; // Very slow scroll
-          flowUv.x += sin(flowUv.y * 10.0 + time) * 0.02;
+          // Flow texture with subtle wave and noise for liquid look
+          vec2 texUv = vUv;
+          texUv.x += sin(vUv.y * 8.0 + time * 1.2) * 0.08 * thickness;
+          texUv.y += time * flowSpeed * (0.05 + 0.07 * noiseVal);
           
-          // Sample gold texture
-          vec4 gold = texture2D(goldTexture, flowUv);
+          // Gold base (texture gives micro surface detail)
+          vec3 goldTex = texture2D(goldTexture, texUv).rgb;
+          vec3 gold = goldTex * goldIntensity * thickness;
           
-          // LAVA PULSE: Animate hot core moving along crack length
-          float crackFlow = fract(vUv.y * 2.0 + time * flowSpeed * 0.15);
-          float hotCore = exp(-pow((crackFlow - 0.5) * 3.0, 2.0));
+          // Edge shimmer based on distance from center
+          float edgeShimmer = smoothstep(0.5, 0.9, vCenter) * (0.18 + 0.2 * shimmerIntensity);
+          vec3 sheenColor = mix(vec3(0.85,0.80,0.35), vec3(0.48,0.36,0.8), edgeShimmer);
+          gold += sheenColor * edgeShimmer * 0.5;
           
-          // Add secondary pulse at different speed
-          float crackFlow2 = fract(vUv.y * 3.0 - time * flowSpeed * 0.2);
-          float hotCore2 = exp(-pow((crackFlow2 - 0.5) * 4.0, 2.0));
+          // Add a fake SSS "thickness" highlight in the center
+          float sss = smoothstep(0.27, 0.0, vCenter) * 0.6; // center is thicker
+          gold += vec3(1.0, 0.89, 0.66) * sss * 0.12;
           
-          // Combine pulses
-          float totalHeat = hotCore * 0.7 + hotCore2 * 0.3;
+          // Lava pulse: only a thin band moves, not everything glowing
+          float pulseCenter = mod(time * flowSpeed * 0.22, 1.0);
+          float bandWidth = 0.16 + 0.07 * sin(time * 0.9);
+          float pulse = exp(-pow((vUv.y - pulseCenter) / bandWidth, 2.0));
+          float trail = smoothstep(0.11, 0.0, vUv.y - pulseCenter);
           
-          // Flicker for realism
-          float flicker = 0.7 + 0.4 * sin(time * 11.0 + vUv.y * 18.0 + vPosition.x * 7.0);
+          // Animate pulse to "blob" around
+          float moltenPulse = pulse * (0.7 + 0.2 * noiseVal);
+          gold += vec3(1.4, 1.15, 0.13) * moltenPulse * lavaGlow * 0.33;
+          gold += vec3(1.0, 0.75, 0.10) * trail * lavaGlow * 0.09;
           
-          // Moving shimmer waves
-          float shimmer = 1.0 + sin(time * 4.0 + vPosition.x * 15.0 + vPosition.y * 15.0) * shimmerIntensity;
+          // Radial highlight for tube volume (makes it look round/thick)
+          float radial = 1.0 - smoothstep(0.21, 0.43, abs(vUv.x - 0.5));
+          gold *= (0.90 + 0.18 * radial);
           
-          // Base gold color
-          vec3 goldBase = gold.rgb * goldIntensity * shimmer;
+          // Subtle bumpiness (multiplied by noise again)
+          float bump = valueNoise(vUv * 19.0 + time * 0.18) * 0.14;
+          gold *= (1.0 + bump);
           
-          // Lava glow - bright orange/yellow pulse
-          vec3 lavaPulse = vec3(1.0, 0.85, 0.4) * lavaGlow * totalHeat * flicker * flowAnimation;
+          // Soft edge alpha, slightly feathered
+          float edgeAlpha = smoothstep(0.09, 0.41, radial) * (0.96 - 0.18 * vCenter);
           
-          // Combine
-          vec3 finalColor = goldBase + lavaPulse;
-          
-          // Emission based on heat
-          vec3 emission = finalColor * (totalHeat * 0.6 + 0.1);
-          
-          gl_FragColor = vec4(finalColor + emission, edgeAlpha);
+          gl_FragColor = vec4(gold, edgeAlpha);
         }
       `,
       side: THREE.DoubleSide,
       transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      depthWrite: true,
+      blending: THREE.NormalBlending,
     })
 
     sharedMaterialRef.current = material
@@ -527,7 +563,7 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
   return (
     <group ref={groupRef}>
       {/* Slate background with clipping mask */}
-      <mesh position={[0, 0, -0.001]} renderOrder={1}>
+      <mesh position={[0, 0, 0]} renderOrder={1}>
         <planeGeometry args={[4, 4]} />
         <meshStandardMaterial
           map={slateTexture}
@@ -541,30 +577,30 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       {/* Black frame around slate to hide bloom outside */}
       <group>
         {/* Top */}
-        <mesh position={[0, 4, -0.002]} renderOrder={0}>
+        <mesh position={[0, 4, -0.01]} renderOrder={0}>
           <planeGeometry args={[20, 8]} />
           <meshBasicMaterial color="#000000" />
         </mesh>
         {/* Bottom */}
-        <mesh position={[0, -4, -0.002]} renderOrder={0}>
+        <mesh position={[0, -4, -0.01]} renderOrder={0}>
           <planeGeometry args={[20, 8]} />
           <meshBasicMaterial color="#000000" />
         </mesh>
         {/* Left */}
-        <mesh position={[-4, 0, -0.002]} renderOrder={0}>
+        <mesh position={[-4, 0, -0.01]} renderOrder={0}>
           <planeGeometry args={[8, 20]} />
           <meshBasicMaterial color="#000000" />
         </mesh>
         {/* Right */}
-        <mesh position={[4, 0, -0.002]} renderOrder={0}>
+        <mesh position={[4, 0, -0.01]} renderOrder={0}>
           <planeGeometry args={[8, 20]} />
           <meshBasicMaterial color="#000000" />
         </mesh>
       </group>
 
-      {/* Gold cracks */}
+      {/* Gold cracks - positioned flush with slate */}
       {crackData.map((crack, index) => (
-        <mesh key={index} geometry={crack.geometry} renderOrder={3}>
+        <mesh key={index} geometry={crack.geometry} position={[0, 0, 0.001]} renderOrder={3}>
           <primitive object={goldMaterial} attach="material" />
         </mesh>
       ))}
@@ -652,18 +688,18 @@ export default function KintsugiThreeJS() {
   const [randomSeed, setRandomSeed] = useState(0)
   const [params, setParams] = useState<KintsugiParams>({
     crackCount: 5,
-    crackThickness: 0.5,
-    goldIntensity: 1.2,
-    goldShimmer: 0.3,
-    goldFlowSpeed: 0.8,
-    goldFlowAnimation: 1.2,
+    crackThickness: 0.8,
+    goldIntensity: 1.0,
+    goldShimmer: 0.4,
+    goldFlowSpeed: 0.3,
+    goldFlowAnimation: 1.0,
     crackCurviness: 0.7,
     branchProbability: 0.4,
-    ambientIntensity: 0.6,
+    ambientIntensity: 0.5,
     cameraDistance: 5,
-    bloomIntensity: 1.5,
-    bloomThreshold: 0.2,
-    lavaGlow: 1.2,
+    bloomIntensity: 2.0,
+    bloomThreshold: 0.1,
+    lavaGlow: 1.5,
   })
 
   const updateParam = (key: keyof KintsugiParams) => (value: number) => {
