@@ -7,7 +7,7 @@ import express from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-import { SignalingCore } from '../core/SignalingCore'
+import { SignalingCore } from '@vibe/core'
 import { MemoryStorageAdapter } from '../adapters/MemoryStorageAdapter'
 import { SocketIOAdapter } from '../adapters/SocketIOAdapter'
 import { 
