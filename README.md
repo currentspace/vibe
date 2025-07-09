@@ -1,28 +1,45 @@
-# Vibe - Real-time WebRTC Video Chat Application
+# Vibe - WebRTC Video Chat Monorepo
 
-A modern, real-time video chat application built with React 19, Next.js 15, and WebRTC. Features a clean architecture with a monorepo structure and real-time signaling via Socket.io.
+A modern WebRTC video chat application built with a microservices architecture using pnpm workspaces. Features real-time video/audio communication, HTTP/3 support, and a modular package structure.
 
-## 🚀 Features
+## 🏗️ Architecture
 
-- **Real-time Video Chat** - Peer-to-peer video communication using WebRTC
-- **Room-based Sessions** - Create and join private rooms for video calls
-- **Modern Tech Stack** - React 19 with Server Components, Next.js 15, TypeScript
-- **Beautiful UI** - Chakra UI v3 with smooth animations
-- **Monorepo Architecture** - Clean separation of concerns with pnpm workspaces
-- **Type-safe** - Full TypeScript coverage across the entire stack
-- **Well-tested** - Comprehensive test suite with Vitest
-- **HTTP/2 Support** - Optional HTTP/2 support for improved performance
+This project uses a monorepo structure managed by pnpm workspaces:
 
-## 📋 Prerequisites
+```
+vibe/
+├── apps/                    # Application packages
+│   ├── web/                # Next.js web application
+│   └── signaling/          # Express.js signaling server
+├── packages/               # Shared packages
+│   ├── core/              # Core business logic and types
+│   ├── api/               # API client and server utilities
+│   └── components/        # Shared React components
+└── docs/                  # Documentation
+```
 
-- Node.js 23.0.0 or higher
-- pnpm 9.15.4 or higher
-- Git
+## 📦 Packages
+
+### Applications
+
+- **`apps/web`** - Next.js 15 web application with React 19, Chakra UI, and WebRTC peer connections
+- **`apps/signaling`** - Express.js 5 WebSocket signaling server with Socket.io
+
+### Libraries
+
+- **`packages/core`** - Core types, utilities, and business logic shared across packages
+- **`packages/api`** - API client (SignalingClient) and server utilities
+- **`packages/components`** - Reusable React components (WebRTCContext, UI components, hooks)
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js >=24.0.0
+- pnpm 10.12.4
 - [mkcert](https://github.com/FiloSottile/mkcert) (for HTTPS setup)
 
-## 🛠️ Installation
-
-### 1. Basic Setup
+### Installation
 
 ```bash
 # Clone the repository
@@ -31,208 +48,136 @@ cd vibe
 
 # Install dependencies
 pnpm install
+
+# Build all packages
+pnpm build
 ```
 
-### 2. HTTPS Setup (Required for WebRTC)
+### HTTPS Setup (Required for WebRTC)
 
-WebRTC requires secure contexts (HTTPS) to access camera and microphone. Set up local HTTPS using mkcert:
+WebRTC requires secure contexts (HTTPS) to access camera and microphone:
 
-#### Install mkcert
-
-**macOS:**
 ```bash
+# Install mkcert (macOS)
 brew install mkcert
 brew install nss # if you use Firefox
-```
 
-**Windows:**
-```bash
-choco install mkcert
-# or using Scoop
-scoop bucket add extras
-scoop install mkcert
-```
-
-**Linux:**
-```bash
-# Using Homebrew on Linux
-brew install mkcert
-
-# Or download from https://github.com/FiloSottile/mkcert/releases
-# Example for Linux x64:
-wget https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64
-chmod +x mkcert-v1.4.4-linux-amd64
-sudo mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
-```
-
-#### Generate Local Certificates
-
-```bash
 # Install the local CA
 mkcert -install
 
-# Create certificates directory
-mkdir -p certs
-
-# Generate certificates for localhost
-mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem localhost 127.0.0.1 ::1
-
-# The certificates are now in the certs/ directory
+# Generate certificates
+pnpm setup:https
 ```
 
-### 3. Configure Environment (Optional)
-
-For HTTPS mode, update the environment files:
-
-**apps/web/.env.development:**
-```env
-# Change this line
-NEXT_PUBLIC_SIGNALING_URL=https://localhost:4000
-```
-
-**apps/signaling/.env.development:**
-```env
-# Change this line
-CLIENT_URL=https://localhost:3000
-```
-
-### 4. Run Development Servers
+### Development
 
 ```bash
+# Run all services in development mode
+pnpm dev
+
 # Run with HTTPS enabled (recommended for WebRTC)
 pnpm dev:https
 
-# Or run with HTTP (WebRTC features will be limited)
-pnpm dev
+# Run specific services
+pnpm dev:web        # Web app only
+pnpm dev:signaling  # Signaling server only
+
+# Run with Docker (includes HTTP/3 support)
+pnpm dev:docker
 ```
 
-This will start:
-- Web application at https://localhost:3000 (HTTPS) or http://localhost:3000 (HTTP)
-- Signaling server at https://localhost:4000 (HTTPS) or http://localhost:4000 (HTTP)
-- API documentation at https://localhost:4000/api-docs
-
-**Note:** When using HTTPS, your browser may show a security warning. This is normal for local development. Click "Advanced" and "Proceed to localhost" to continue.
-
-### 5. HTTP/2 Support (Enabled by Default)
-
-HTTP/2 is automatically enabled when using HTTPS, providing:
-- Multiplexed streams (multiple requests over single connection)
-- Header compression
-- Server push capabilities
-- Binary protocol (more efficient than text-based HTTP/1.1)
-
-To disable HTTP/2 and use HTTP/1.1 with TLS instead:
-```env
-# In apps/signaling/.env.development
-USE_HTTP2=false
-```
-
-## 📁 Project Structure
-
-```
-vibe/
-├── apps/
-│   ├── web/                 # Next.js web application
-│   │   ├── src/
-│   │   │   ├── app/        # App router pages
-│   │   │   ├── components/ # React components
-│   │   │   ├── contexts/   # React contexts
-│   │   │   └── lib/        # Utilities
-│   │   └── package.json
-│   │
-│   └── signaling/          # Express/Socket.io signaling server
-│       ├── src/
-│       │   ├── index.ts    # Server entry point
-│       │   └── __tests__/  # Server tests
-│       └── package.json
-│
-├── docs/                   # Project documentation
-│   ├── README.md          # Documentation index
-│   ├── ARCHITECTURE.md    # System architecture
-│   ├── CODING_STANDARDS.md # Code style guide
-│   └── TESTING_STANDARDS.md # Testing guidelines
-│
-├── packages/              # Shared packages (future)
-├── package.json          # Root package.json
-├── pnpm-workspace.yaml   # Monorepo configuration
-└── llm.txt              # AI assistant context
-```
-
-## 🔧 Available Scripts
-
-From the root directory:
-
-### Development
-```bash
-pnpm dev              # Run all services in parallel
-pnpm dev:https        # Run all services with HTTPS
-pnpm dev:docker       # Run with Caddy proxy (HTTP/3, simulates Cloudflare)
-pnpm dev:web          # Run only the web application
-pnpm dev:signaling    # Run only the signaling server
-pnpm check:https      # Check HTTPS certificate setup
-```
-
-### Docker Commands
-```bash
-pnpm docker:up        # Start Docker environment
-pnpm docker:down      # Stop Docker environment
-pnpm docker:logs      # View container logs
-```
+## 🛠️ Development Commands
 
 ### Building
+
 ```bash
-pnpm build            # Build all packages for production
+# Build all packages
+pnpm build
+
+# Build specific package
+pnpm --filter=@vibe/core build
+pnpm --filter=web build
 ```
 
 ### Testing
+
 ```bash
-pnpm test             # Run all tests
-pnpm test:watch       # Run tests in watch mode
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with UI
+pnpm test:ui
+
+# Test specific package
+pnpm --filter=web test
 ```
 
 ### Code Quality
+
 ```bash
-pnpm lint             # Run ESLint
-pnpm typecheck        # Run TypeScript type checking
+# Type checking
+pnpm typecheck
+
+# Linting
+pnpm lint
+
+# Format code
+pnpm format
 ```
 
-## 🏗️ Architecture
+### Package Management
 
-### Web Application (Next.js)
-- **Framework**: Next.js 15.3 with App Router
-- **UI Library**: Chakra UI v3 with Emotion
-- **State Management**: React Context API
-- **Real-time**: Socket.io client
+```bash
+# Update all dependencies
+pnpm update -r --latest
 
-### Signaling Server (Express)
-- **Framework**: Express 5 with TypeScript
-- **WebSocket**: Socket.io for real-time communication
-- **Architecture**: RESTful API + WebSocket events
+# Update specific workspace
+pnpm update --latest --filter=web
+pnpm update --latest --filter=@vibe/core
 
-### Key Technologies
-- **React 19.1** - Latest React with Server Components
-- **TypeScript 5** - Type safety across the stack
-- **Vitest** - Fast unit testing framework
-- **pnpm** - Efficient package management
+# Clean all build artifacts
+pnpm clean
+```
 
-## 🚦 Getting Started
+## 🐳 Docker Support
 
-1. **Start the development servers**
-   ```bash
-   pnpm dev
-   ```
+The project includes Docker support with HTTP/3 (QUIC) via Caddy:
 
-2. **Open the application**
-   Navigate to http://localhost:3000
+```bash
+# Start services
+pnpm docker:up
 
-3. **Create or join a room**
-   - Click "Create New Room" to start a session
-   - Share the room ID with others
-   - Or enter a room ID to join an existing session
+# View logs
+pnpm docker:logs
+
+# Stop services
+pnpm docker:down
+```
+
+### Docker Architecture
+
+- **Caddy** - Reverse proxy with HTTP/3 support
+- **Web** - Next.js application container
+- **Signaling** - Express.js signaling server
+- **Network** - Isolated Docker network for services
+
+## 🔒 HTTPS/TLS Configuration
+
+Local development uses mkcert for SSL certificates:
+
+- Certificates are stored in `/certs`
+- Supports `localhost` and `vibe.local`
+- HTTP/2 and HTTP/3 enabled via Caddy proxy
+- Automatic HTTPS redirect in production
 
 ## 📡 API Documentation
 
 ### REST Endpoints
+
+The signaling server provides OpenAPI documentation at `http://localhost:3005/api-docs`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -249,28 +194,80 @@ pnpm typecheck        # Run TypeScript type checking
 | `offer` | Client ↔ Server | WebRTC offer |
 | `answer` | Client ↔ Server | WebRTC answer |
 | `ice-candidate` | Client ↔ Server | ICE candidate exchange |
+| `user-joined` | Server → Client | User joined notification |
+| `user-left` | Server → Client | User left notification |
 
-## 🧪 Testing
+## 🎯 Features
 
-The project uses Vitest for testing:
+- **Real-time Video Chat** - Peer-to-peer video communication using WebRTC
+- **Room-based Sessions** - Create and join private rooms for video calls
+- **Modern React** - React 19 with Server Components and concurrent features
+- **Type Safety** - Full TypeScript coverage with strict mode
+- **Modular Architecture** - Clean separation of concerns with shared packages
+- **HTTP/3 Support** - Next-generation protocol support via Caddy
+- **Comprehensive Testing** - Unit tests with Vitest, component tests with Testing Library
+- **Developer Experience** - Hot reloading, TypeScript, ESLint, and Prettier
 
-```bash
-# Run tests once
-pnpm test
+## 📚 Documentation
 
-# Run tests in watch mode
-pnpm test:watch
+- [Architecture](docs/ARCHITECTURE.md) - System design and data flow
+- [Contributing](docs/CONTRIBUTING.md) - Development guidelines
+- [Docker & HTTP/3](docs/DOCKER_HTTP3.md) - Container setup
+- [Coding Standards](docs/CODING_STANDARDS.md) - Code style guide
+- [Testing Standards](docs/TESTING_STANDARDS.md) - Testing practices
 
-# Run with coverage
-pnpm test -- --coverage
-```
+## 🛠️ Technology Stack
+
+### Frontend
+- **Next.js 15.3** - React framework with App Router
+- **React 19.1** - Latest React with Server Components
+- **Chakra UI 3.22** - Component library
+- **TypeScript 5.8** - Type safety
+- **Socket.io Client** - WebSocket communication
+- **WebRTC** - Peer-to-peer video/audio
+
+### Backend
+- **Express.js 5.1** - Web framework
+- **Socket.io 4.8** - Real-time bidirectional communication
+- **TypeScript 5.8** - Type safety
+- **Swagger/OpenAPI** - API documentation
+
+### Shared Packages
+- **@vibe/core** - Business logic, types, utilities
+- **@vibe/api** - API client and server utilities
+- **@vibe/components** - React components and hooks
+
+### Infrastructure
+- **pnpm** - Fast, disk space efficient package manager
+- **Turborepo** - High-performance build system (planned)
+- **Docker Compose** - Container orchestration
+- **Caddy** - Modern web server with HTTP/3
+- **Vitest** - Fast unit test framework
+- **ESLint 9** - Code linting
+- **tsup** - TypeScript bundler for packages
 
 ## 🚀 Deployment
+
+### Environment Variables
+
+Create `.env` files for each application:
+
+**apps/web/.env:**
+```env
+NEXT_PUBLIC_SIGNALING_URL=https://your-signaling-server.com
+```
+
+**apps/signaling/.env:**
+```env
+PORT=3005
+NODE_ENV=production
+CLIENT_URL=https://your-web-app.com
+```
 
 ### Production Build
 
 ```bash
-# Build all applications
+# Build all packages
 pnpm build
 
 # Start production servers
@@ -278,49 +275,10 @@ cd apps/web && pnpm start
 cd apps/signaling && pnpm start
 ```
 
-### Environment Variables
-
-Create `.env` files in each app:
-
-**apps/web/.env**
-```env
-NEXT_PUBLIC_SIGNALING_URL=https://your-signaling-server.com
-```
-
-**apps/signaling/.env**
-```env
-PORT=4000
-NODE_ENV=production
-CLIENT_URL=https://your-web-app.com
-```
-
-## 📚 Documentation
-
-- [Architecture Overview](./docs/ARCHITECTURE.md)
-- [Coding Standards](./docs/CODING_STANDARDS.md)
-- [Testing Standards](./docs/TESTING_STANDARDS.md)
-
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Follow the coding standards
-4. Write tests for new functionality
-5. Commit your changes using conventional commits
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+Please read our [Contributing Guide](docs/CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [Next.js](https://nextjs.org/)
-- UI components from [Chakra UI](https://chakra-ui.com/)
-- Real-time communication via [Socket.io](https://socket.io/)
-- WebRTC implementation inspired by best practices
-
----
-
-Made with ❤️ using modern web technologies

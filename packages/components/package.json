@@ -1,0 +1,61 @@
+{
+  "name": "@vibe/components",
+  "version": "1.0.0",
+  "description": "Shared UI components for Vibe",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.mjs",
+      "require": "./dist/hooks/index.js"
+    },
+    "./contexts": {
+      "types": "./dist/contexts/index.d.ts",
+      "import": "./dist/contexts/index.mjs",
+      "require": "./dist/contexts/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts src/**/*.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@vibe/api": "workspace:*",
+    "@vibe/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.20.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.0"
+  }
+}

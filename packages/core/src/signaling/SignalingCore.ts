@@ -43,8 +43,7 @@ export class SignalingCore {
         default:
           this.sendError(connectionId, 'Unknown message type')
       }
-    } catch (error) {
-      console.error('Error handling message:', error)
+    } catch {
       this.sendError(connectionId, 'Internal server error')
     }
   }

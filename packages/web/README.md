@@ -1,36 +1,227 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vibe Web Application
 
-## Getting Started
+Next.js-based web application for the Vibe video chat platform.
 
-First, run the development server:
+## Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+This is the main web application for Vibe, built with Next.js 15, React 19, and Chakra UI. It provides a modern, responsive interface for WebRTC-based video communication.
+
+## Technology Stack
+
+- **Next.js 15.3** - React framework with App Router
+- **React 19.1** - UI library with Server Components
+- **Chakra UI 3.22** - Component library
+- **TypeScript 5.8** - Type safety
+- **Socket.io Client** - WebSocket communication
+- **@vibe/components** - Shared WebRTC components
+- **@vibe/core** - Core types and utilities
+- **@vibe/api** - API client
+
+## Features
+
+- Real-time video and audio communication
+- Room-based video chat sessions
+- Responsive design for all devices
+- Server-side rendering with streaming
+- WebGL demos and visualizations
+- Modern UI with smooth animations
+
+## Project Structure
+
+```
+src/
+├── app/                    # App Router pages
+│   ├── layout.tsx         # Root layout with providers
+│   ├── page.tsx           # Landing page
+│   ├── connect/           # Video chat interface
+│   │   └── page.tsx      # Main video chat page
+│   └── webgl/            # WebGL demos
+│       ├── page.tsx      # WebGL examples
+│       ├── kintsugi/     # Kintsugi shader demo
+│       ├── legacy/       # Legacy WebGL demo
+│       └── compare/      # Comparison demo
+├── components/           # App-specific components
+│   ├── RoomManager.tsx  # Room creation/joining UI
+│   ├── ClientOnly.tsx   # Client-side wrapper
+│   └── WebGL/          # WebGL components
+├── contexts/            # Legacy contexts (migrating)
+└── lib/                # Utilities
+    └── emotion-registry.tsx # Emotion CSS-in-JS
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Prerequisites
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Node.js >=24.0.0
+- pnpm 10.12.4
+- SSL certificates for HTTPS (see root README)
 
-## Learn More
+### Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+Create `.env.local`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+# Required
+NEXT_PUBLIC_SIGNALING_URL=http://localhost:3005
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Optional
+NEXT_PUBLIC_STUN_SERVERS=stun:stun.l.google.com:19302
+NEXT_PUBLIC_TURN_SERVERS=
+```
 
-## Deploy on Vercel
+### Running Locally
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Install dependencies (from root)
+pnpm install
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Run development server
+pnpm dev:web
+
+# Or run with HTTPS
+pnpm dev:https
+
+# Build for production
+pnpm --filter=web build
+
+# Start production server
+pnpm --filter=web start
+```
+
+### Available Scripts
+
+- `dev` - Start development server
+- `dev:https` - Start with HTTPS enabled
+- `build` - Build for production
+- `start` - Start production server
+- `lint` - Run ESLint
+- `test` - Run tests with Vitest
+- `test:watch` - Run tests in watch mode
+- `test:ui` - Run tests with UI
+- `typecheck` - Run TypeScript compiler
+
+## Pages
+
+### Landing Page (`/`)
+- Introduction to Vibe
+- Quick access to create/join rooms
+- Feature highlights
+
+### Connect Page (`/connect`)
+- Main video chat interface
+- Room management
+- Participant list
+- Media controls
+
+### WebGL Demos (`/webgl/*`)
+- Interactive 3D visualizations
+- Shader experiments
+- Performance comparisons
+
+## Key Components
+
+### RoomManager
+Handles room creation and joining logic:
+- Create new rooms
+- Join existing rooms
+- Display connection status
+
+### WebRTC Integration
+Uses `@vibe/components` for:
+- WebRTC context provider
+- Media stream management
+- Peer connection handling
+
+### UI Components
+Built with Chakra UI:
+- Responsive layouts
+- Dark mode support
+- Accessible components
+
+## Testing
+
+```bash
+# Run tests
+pnpm test
+
+# Run with coverage
+pnpm test -- --coverage
+
+# Run specific test file
+pnpm test Button.test.tsx
+```
+
+Test files are located next to components:
+- `*.test.tsx` - Component tests
+- `*.test.ts` - Utility tests
+
+## Building for Production
+
+```bash
+# Build the application
+pnpm --filter=web build
+
+# Analyze bundle size
+pnpm --filter=web build -- --analyze
+```
+
+Build output:
+- `.next/` - Build artifacts
+- `out/` - Static export (if configured)
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Connect GitHub repository
+2. Set environment variables
+3. Deploy automatically on push
+
+### Docker
+
+```bash
+# Build image
+docker build -f Dockerfile.dev -t vibe-web .
+
+# Run container
+docker run -p 3000:3000 vibe-web
+```
+
+### Self-Hosted
+
+1. Build the application
+2. Set up Node.js server
+3. Configure reverse proxy (nginx/Caddy)
+4. Set environment variables
+
+## Performance Optimization
+
+- Server Components for reduced JavaScript
+- Dynamic imports for code splitting
+- Image optimization with next/image
+- Font optimization with next/font
+- Turbopack for faster development
+
+## Troubleshooting
+
+### HTTPS Issues
+- Ensure certificates are generated
+- Check certificate paths
+- Verify browser accepts self-signed certs
+
+### WebRTC Issues
+- Check browser permissions
+- Verify HTTPS is enabled
+- Check firewall settings
+- Test STUN/TURN connectivity
+
+### Build Issues
+- Clear `.next` directory
+- Delete `node_modules` and reinstall
+- Check TypeScript errors
+- Verify environment variables
+
+## License
+
+MIT

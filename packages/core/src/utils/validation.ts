@@ -29,9 +29,9 @@ export function isValidSessionDescription(sdp: unknown): sdp is RTCSessionDescri
     sdp !== null &&
     'type' in sdp &&
     'sdp' in sdp &&
-    typeof (sdp as any).type === 'string' &&
-    typeof (sdp as any).sdp === 'string' &&
-    ['offer', 'answer'].includes((sdp as any).type)
+    typeof (sdp as RTCSessionDescriptionInit).type === 'string' &&
+    typeof (sdp as RTCSessionDescriptionInit).sdp === 'string' &&
+    ['offer', 'answer'].includes((sdp as RTCSessionDescriptionInit).type)
   )
 }
 
@@ -43,7 +43,7 @@ export function isValidIceCandidate(candidate: unknown): candidate is RTCIceCand
     typeof candidate === 'object' &&
     candidate !== null &&
     'candidate' in candidate &&
-    typeof (candidate as any).candidate === 'string'
+    typeof (candidate as RTCIceCandidateInit).candidate === 'string'
   )
 }
 
@@ -60,7 +60,8 @@ export function sanitizeDisplayName(name: string): string {
   const trimmed = stripped.trim().substring(0, 50)
   
   // Remove any control characters
-  const cleaned = trimmed.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+  // eslint-disable-next-line no-control-regex
+  const cleaned = trimmed.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
   
   return cleaned || 'Anonymous'
 }

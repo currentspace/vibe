@@ -1,26 +1,84 @@
 # Vibe Monorepo - WebRTC Video Chat Application
 
+## 🚨 CRITICAL RULES - ALWAYS FOLLOW
+1. **ALWAYS use `pnpm`** - NEVER use `npx` or `npm`
+2. **ALWAYS run quality checks** before completing tasks:
+   ```bash
+   pnpm build        # Build all packages
+   pnpm typecheck    # Check TypeScript types
+   pnpm lint         # Run ESLint
+   pnpm test         # Run tests
+   ```
+3. **ALWAYS use workspace protocol** for internal dependencies: `"@vibe/core": "workspace:*"`
+4. **NEVER commit without running**: `pnpm build && pnpm typecheck && pnpm lint && pnpm test`
+
 ## Project Overview
 Vibe is a modern WebRTC video chat application built with a microservices architecture using pnpm workspaces. It features real-time video/audio communication, HTTP/3 support, and comprehensive development tooling.
 
 ## Project Structure
-- **Root**: pnpm managed monorepo with workspace configuration
-- **Workspace packages**: Defined in `pnpm-workspace.yaml` as `apps/*` and `packages/*`
-- **Current packages**:
-  - `apps/signaling`: Express.js WebSocket signaling server
-  - `apps/web`: Next.js web application
-  - `packages/`: Reserved for future shared libraries
+```
+vibe/
+├── apps/                    # Application packages
+│   ├── web/                # Next.js 15 web application
+│   └── signaling/          # Express.js 5 signaling server
+├── packages/               # Shared packages
+│   ├── core/              # Core business logic and types
+│   ├── api/               # API client and server utilities
+│   └── components/        # Shared React components
+├── docs/                  # Documentation
+├── certs/                 # SSL certificates (gitignored)
+└── pnpm-workspace.yaml    # Workspace configuration
+```
 
-## Key Technologies
-### Web App (apps/web)
-- **Runtime**: Next.js 15.3, React 19.1, Chakra UI 3.22, Socket.io-client 4.8
-- **Development**: TypeScript 5.8, Vitest 3.2, ESLint 9.30
-- **Features**: Server Components, Turbopack, WebRTC peer connections
+## Package Architecture
 
-### Signaling Service (apps/signaling)
-- **Runtime**: Express 5.1, Socket.io 4.8, cors 2.8, dotenv 17.1, uuid 11.1
-- **Development**: TypeScript 5.8, Vitest 3.2, ESLint 9.30, tsx 4.20
-- **Features**: WebSocket signaling, REST API, Swagger documentation
+### @vibe/core (Zero Dependencies)
+- **Purpose**: Shared business logic, types, and utilities
+- **Key Exports**:
+  - Types: `Participant`, `Room`, `SignalingMessage`, `ConnectionState`
+  - Utilities: ID generation, validation, error handling
+  - Classes: `ConnectionStateManager`, `RoomManager`, `SignalingCore`
+  - Constants: Error codes, limits, configuration
+- **Architecture**: Pure functions, immutable data, platform-agnostic
+
+### @vibe/api
+- **Purpose**: Client-server communication layer
+- **Key Components**:
+  - `SignalingClient`: Event-driven WebSocket client with auto-reconnect
+  - Server utilities: REST handlers, middleware
+  - Event protocol: join-room, leave-room, offer, answer, ice-candidate
+- **Dependencies**: `@vibe/core` only
+
+### @vibe/components
+- **Purpose**: Reusable React components and hooks
+- **Key Exports**:
+  - Context: `WebRTCProvider`, `useWebRTC`
+  - Hooks: `useMediaStream`, `useRoomConnection`
+  - UI: `VideoPlayer`, `MediaControls`, `ParticipantList`, `ConnectionStatus`
+- **Guidelines**: Function components, TypeScript interfaces, className support
+- **Dependencies**: `@vibe/core`, `@vibe/api`
+
+### apps/web
+- **Stack**: Next.js 15.3, React 19.1, Chakra UI 3.22
+- **Features**: Server Components, WebRTC peer connections, WebGL demos
+- **Structure**:
+  ```
+  src/
+  ├── app/           # App Router pages
+  ├── components/    # App-specific components
+  ├── contexts/      # Legacy (migrating to @vibe/components)
+  └── lib/          # Utilities
+  ```
+- **Patterns**: Server Components by default, 'use client' only when needed
+
+### apps/signaling
+- **Stack**: Express 5.1, Socket.io 4.8, TypeScript
+- **Features**: WebSocket signaling, REST API, Swagger docs
+- **Endpoints**:
+  - `GET /health` - Health check
+  - `POST /api/rooms` - Create room
+  - `GET /api/rooms/:roomId` - Get room info
+  - `GET /api-docs` - Swagger UI
 
 ## Development Commands
 ```bash
@@ -34,88 +92,140 @@ pnpm dev:signaling # Run only signaling server
 # Building & Testing
 pnpm build        # Build all packages
 pnpm test         # Run all tests
+pnpm test:watch   # Run tests in watch mode
+pnpm test:ui      # Run tests with Vitest UI
 pnpm lint         # Lint all packages
 pnpm typecheck    # Type check all packages
 
-# Documentation
-pnpm build:docs   # Generate API documentation
+# Package-specific commands
+pnpm --filter=@vibe/core build
+pnpm --filter=web test
+pnpm --filter=signaling lint
 
-# Docker
-pnpm docker:up    # Start Docker services
-pnpm docker:down  # Stop Docker services
-pnpm docker:logs  # View Docker logs
+# Dependency Management
+pnpm update -r --latest              # Update all
+pnpm update --latest --filter=web    # Update specific
+pnpm add <pkg> --filter=@vibe/core  # Add to package
 ```
 
-## Dependency Management
+## Code Style & Patterns
+
+### TypeScript
+- Strict mode enabled
+- Prefer interfaces over types for objects
+- Meaningful variable names
+- Document complex functions
+
+### React Components
+```tsx
+// Function components only
+export function MyComponent({ prop }: MyComponentProps) {
+  return <div>{prop}</div>
+}
+
+// Always include interfaces
+interface MyComponentProps {
+  prop: string
+  className?: string  // Always support className
+}
+```
+
+### Testing
+- Vitest for all packages
+- Co-locate test files: `Component.test.tsx`
+- Mock WebRTC APIs
+- Minimum 80% coverage
+
+### Common Patterns
+- Server Components by default in Next.js
+- Event-driven architecture for real-time features
+- Immutable state updates
+- Error boundaries for resilience
+
+## WebRTC Implementation
+- **Signaling**: Socket.io with room-based routing
+- **State Management**: WebRTCContext in @vibe/components
+- **Media Handling**: useMediaStream hook
+- **Connection Management**: useRoomConnection hook
+- **Peer Connections**: Managed in WebRTCContext with automatic cleanup
+
+## Environment Variables
+### apps/web
+- `NEXT_PUBLIC_SIGNALING_URL` - WebSocket server URL (default: http://localhost:3005)
+
+### apps/signaling
+- `PORT` - Server port (default: 3005)
+- `NODE_ENV` - Environment (development/production)
+- `CLIENT_URL` - Allowed CORS origin (default: http://localhost:3000)
+- `USE_HTTP2` - Enable HTTP/2 support (default: true)
+
+## Common Tasks
+
+### Adding a new shared package
+1. Create directory under `packages/`
+2. Initialize with `pnpm init`
+3. Configure TypeScript and build tools (tsup)
+4. Export from package index
+5. Add to dependent packages
+
+### Updating shared types
+1. Modify types in `packages/core/src/types/`
+2. Build core: `pnpm --filter=@vibe/core build`
+3. TypeScript will catch breaking changes
+
+### Adding new components
+1. Add to `packages/components/src/ui/`
+2. Export from index files
+3. Include TypeScript interfaces
+4. Support className prop
+5. Handle loading/error states
+
+## Architecture Principles
+1. **Dependency Direction**: Apps → Packages → Core (never reverse)
+2. **Zero Dependencies**: @vibe/core has no external dependencies
+3. **Type Safety**: Shared types in @vibe/core ensure consistency
+4. **Modularity**: Each package has a single responsibility
+5. **Testability**: Pure functions, dependency injection
+
+## Performance Considerations
+- React Server Components for reduced client bundle
+- Dynamic imports for code splitting
+- Turbopack for fast development
+- Tree shaking in production builds
+- Efficient re-renders with proper React patterns
+
+## Security Best Practices
+- Input validation on all user inputs
+- CORS properly configured
+- Environment variables for sensitive data
+- No secrets in code
+- TLS/HTTPS in production
+
+## Troubleshooting
+
+### Build Errors
 ```bash
-# Update all dependencies to latest versions
-pnpm update -r --latest
-
-# Update specific workspace
-pnpm update --latest --filter=signaling
-pnpm update --latest --filter=web
-
-# Install dependencies
-pnpm install
+pnpm clean      # Clean all build artifacts
+pnpm install    # Reinstall dependencies
+pnpm build      # Rebuild all packages
 ```
 
-## Docker & Infrastructure
-- **Multi-container setup** with Docker Compose
-- **Caddy reverse proxy** with HTTP/3 (QUIC) support
-- **TLS termination** with local certificates (mkcert)
-- **Health checks** and monitoring endpoints
-- **Security headers** (HSTS, CSP, etc.)
+### Type Errors
+- Check imports from workspace packages
+- Ensure packages are built
+- Run `pnpm typecheck` to see all errors
 
-## HTTPS/TLS Configuration
-- **Local certificates** in `/certs` directory
-- **Supported domains**: localhost, vibe.local
-- **Certificate generation**: Using mkcert
-- **HTTPS validation**: `pnpm check:https`
-- **HTTP/2 & HTTP/3** support
-
-## API Documentation
-- **OpenAPI 3.0** specification
-- **Swagger UI** at `/api-docs`
-- **REST endpoints**:
-  - `GET /health` - Health check
-  - `POST /api/rooms` - Create room
-  - `GET /api/rooms/:roomId` - Get room info
-- **WebSocket events** documentation included
-
-## Testing Setup
-- **Framework**: Vitest for both apps
-- **React testing**: Testing Library with jsdom
-- **Test commands**:
-  - `pnpm test` - Run tests once
-  - `pnpm test:watch` - Watch mode
-  - `pnpm test:ui` - Vitest UI
-- **Coverage requirements**: 80% minimum, 90% for critical paths
-
-## Architecture Highlights
-1. **WebRTC signaling** via Socket.io
-2. **Peer-to-peer connections** for video/audio
-3. **Room-based communication** model
-4. **Scalable architecture** with Redis support planned
-5. **Modern React 19** with Server Components
-6. **Express 5** for improved performance
-7. **HTTP/3 support** via Caddy proxy
-
-## Version Requirements
-- **Node.js**: >=24.0.0
-- **pnpm**: 10.12.4 (specified in root package.json)
-- **Semver strategy**: ^major.minor (no patch versions)
-
-## Project Documentation
-- `/docs/ARCHITECTURE.md` - System design and data flow
-- `/docs/CODING_STANDARDS.md` - Code style guidelines
-- `/docs/TESTING_STANDARDS.md` - Testing best practices
-- `/docs/DOCKER_HTTP3.md` - Docker and HTTP/3 setup
-- `/docs/CONTRIBUTING.md` - Contribution guidelines
+### WebRTC Issues
+- Ensure HTTPS is enabled for camera access
+- Check browser permissions
+- Verify signaling server is running
+- Test STUN/TURN connectivity
 
 ## Future Enhancements
-- STUN/TURN server integration
-- Media server for large groups
-- Redis for horizontal scaling
-- Monitoring and analytics
+- STUN/TURN server integration for NAT traversal
+- Media server (Mediasoup/Janus) for large groups
+- Redis for signaling server horizontal scaling
+- Monitoring with OpenTelemetry
 - E2E testing with Playwright
-- CI/CD pipeline setup
+- CI/CD pipeline with GitHub Actions
+- Turborepo for faster builds

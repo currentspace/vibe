@@ -1,184 +1,313 @@
 # Vibe Signaling Server
 
-A flexible WebRTC signaling server that can run on multiple platforms:
-- **Node.js** with Socket.io (traditional deployment)
-- **Cloudflare Workers** (simple in-memory version)
-- **Cloudflare Durable Objects** (persistent rooms with global distribution)
+Express.js-based WebRTC signaling server with Socket.io for real-time communication.
 
-## Architecture
+## Overview
+
+This is the signaling server for the Vibe video chat application. It handles WebRTC signaling, room management, and peer connection coordination using Socket.io for WebSocket communication.
+
+## Technology Stack
+
+- **Express.js 5.1** - Web framework
+- **Socket.io 4.8** - Real-time bidirectional communication
+- **TypeScript 5.8** - Type safety
+- **Swagger/OpenAPI** - API documentation
+- **Vitest** - Testing framework
+
+## Features
+
+- WebSocket-based signaling for WebRTC
+- Room-based connection management
+- RESTful API for room operations
+- OpenAPI documentation with Swagger UI
+- HTTPS/HTTP2 support
+- CORS configuration
+- Health monitoring endpoints
+
+## Project Structure
 
 ```
 src/
-├── core/                 # Platform-agnostic business logic
-│   ├── types.ts         # Core type definitions
-│   └── SignalingCore.ts # Main signaling logic
+├── index.ts              # Server entry point
+├── api-docs.ts          # OpenAPI specification
+├── https-config.ts      # TLS configuration
+├── core/                # Core business logic
+│   └── SignalingCore.ts # Signaling implementation
 ├── adapters/            # Platform adapters
 │   ├── MemoryStorageAdapter.ts   # In-memory storage
-│   ├── SocketIOAdapter.ts        # Socket.io connections
-│   └── WebSocketAdapter.ts       # Native WebSocket connections
-├── workers/             # Cloudflare Workers implementations
-│   ├── simple-worker.ts          # Basic worker (no persistence)
-│   └── durable-objects.ts        # Durable Objects version
-├── nodejs/              # Node.js implementation
-│   └── server.ts        # Express + Socket.io server
-└── scripts/             # Deployment and management scripts
+│   ├── SocketIOAdapter.ts        # Socket.io adapter
+│   └── WebSocketAdapter.ts       # WebSocket adapter
+└── __tests__/           # Test files
+    └── signaling.test.ts # Integration tests
 ```
 
-## Quick Start
+## API Documentation
 
-### Development
+### REST Endpoints
+
+Access Swagger UI at `http://localhost:3005/api-docs`
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check endpoint |
+| POST | `/api/rooms` | Create a new room |
+| GET | `/api/rooms/:roomId` | Get room information |
+
+### WebSocket Events
+
+#### Client → Server
+
+```typescript
+// Join a room
+socket.emit('join-room', { roomId: string, userId?: string })
+
+// Leave a room
+socket.emit('leave-room')
+
+// Send WebRTC offer
+socket.emit('offer', { targetUserId: string, offer: RTCSessionDescriptionInit })
+
+// Send WebRTC answer
+socket.emit('answer', { targetUserId: string, answer: RTCSessionDescriptionInit })
+
+// Send ICE candidate
+socket.emit('ice-candidate', { targetUserId: string, candidate: RTCIceCandidateInit })
+```
+
+#### Server → Client
+
+```typescript
+// Room joined successfully
+socket.on('room-joined', { roomId: string, userId: string, participants: Participant[] })
+
+// User joined the room
+socket.on('user-joined', { userId: string })
+
+// User left the room
+socket.on('user-left', { userId: string })
+
+// Receive WebRTC offer
+socket.on('offer', { userId: string, offer: RTCSessionDescriptionInit })
+
+// Receive WebRTC answer
+socket.on('answer', { userId: string, answer: RTCSessionDescriptionInit })
+
+// Receive ICE candidate
+socket.on('ice-candidate', { userId: string, candidate: RTCIceCandidateInit })
+
+// Error occurred
+socket.on('error', { message: string })
+```
+
+## Development
+
+### Prerequisites
+
+- Node.js >=24.0.0
+- pnpm 10.12.4
+- SSL certificates for HTTPS (optional)
+
+### Environment Variables
+
+Create `.env`:
+
+```env
+# Server Configuration
+PORT=3005
+NODE_ENV=development
+
+# CORS Configuration
+CLIENT_URL=http://localhost:3000
+
+# HTTPS Configuration (optional)
+USE_HTTPS=false
+USE_HTTP2=true
+CERT_PATH=../../certs/localhost.pem
+KEY_PATH=../../certs/localhost-key.pem
+```
+
+### Running Locally
 
 ```bash
-# Install dependencies
+# Install dependencies (from root)
 pnpm install
 
-# Run Node.js version (Socket.io)
-pnpm dev:node
+# Run development server
+pnpm dev:signaling
 
-# Run Cloudflare Worker locally
-pnpm dev:worker
+# Run with HTTPS
+USE_HTTPS=true pnpm dev:signaling
 
-# Run with Durable Objects locally
-pnpm dev:durable
+# Build for production
+pnpm --filter=signaling build
+
+# Start production server
+pnpm --filter=signaling start
 ```
 
-### Deployment
+### Available Scripts
 
-```bash
-# Deploy to Cloudflare (Durable Objects)
-pnpm deploy:durable
+- `dev` - Start development server with hot reload
+- `build` - Compile TypeScript to JavaScript
+- `start` - Start production server
+- `test` - Run tests with Vitest
+- `test:watch` - Run tests in watch mode
+- `lint` - Run ESLint
+- `typecheck` - Run TypeScript compiler
 
-# Deploy simple worker (free tier)
-pnpm deploy:simple
+## Configuration
 
-# Deploy to production
-pnpm deploy:prod
+### CORS
 
-# Build for Node.js deployment
-pnpm build
-```
+Configure allowed origins in `.env`:
 
-## Platform Comparison
-
-| Feature | Node.js | Simple Worker | Durable Objects |
-|---------|---------|---------------|-----------------|
-| **Persistence** | ❌ Memory only | ❌ Memory only | ✅ Persistent |
-| **Scalability** | ⚠️ Single server | ⚠️ Single region | ✅ Global |
-| **WebSockets** | Socket.io | Native | Native |
-| **Cost** | VPS cost | Free tier | $5/mo + usage |
-| **Setup** | Traditional | Easy | Easy |
-| **State** | Lost on restart | Lost on restart | Preserved |
-
-## API Endpoints
-
-All implementations support the same REST API:
-
-- `POST /api/rooms` - Create a new room
-- `GET /api/rooms/:roomId` - Get room information
-- `GET /health` - Health check
-- `WS /ws` or `/ws/:roomId` - WebSocket connection
-
-## WebSocket Protocol
-
-All implementations support the same message protocol:
-
-```javascript
-// Join room
-{ type: "join-room", roomId: "...", userId: "..." }
-
-// Leave room  
-{ type: "leave-room", roomId: "...", userId: "..." }
-
-// WebRTC signaling
-{ type: "offer", targetUserId: "...", data: {...} }
-{ type: "answer", targetUserId: "...", data: {...} }
-{ type: "ice-candidate", targetUserId: "...", data: {...} }
-```
-
-## Management
-
-```bash
-# View logs
-pnpm logs          # Development
-pnpm logs:prod     # Production
-
-# Run API tests
-pnpm test:api
-
-# Manage secrets (Cloudflare)
-./scripts/manage.sh secrets TURN_SECRET
-
-# View metrics
-./scripts/manage.sh metrics
-```
-
-## Environment Variables
-
-### Node.js
 ```env
-PORT=4000
-CORS_ORIGIN=*
-USE_HTTPS=false
+CLIENT_URL=http://localhost:3000,https://yourdomain.com
 ```
 
-### Cloudflare Workers
-```toml
-[vars]
-LOG_LEVEL = "info"
-TURN_SECRET = "your-secret"  # Use wrangler secret put
-```
+### HTTPS/HTTP2
 
-## Migration Guide
+To enable HTTPS with HTTP/2:
 
-### From Socket.io to Cloudflare
-
-1. Update your client to use native WebSockets:
-   ```javascript
-   // Old (Socket.io)
-   const socket = io('http://localhost:4000')
-   
-   // New (WebSocket)
-   const ws = new WebSocket('wss://your-worker.workers.dev/ws')
+1. Generate certificates (see root README)
+2. Set environment variables:
+   ```env
+   USE_HTTPS=true
+   USE_HTTP2=true
+   CERT_PATH=path/to/cert.pem
+   KEY_PATH=path/to/key.pem
    ```
 
-2. Update message format:
-   ```javascript
-   // Old (Socket.io events)
-   socket.emit('join-room', roomId, userId)
-   
-   // New (JSON messages)
-   ws.send(JSON.stringify({ 
-     type: 'join-room', 
-     roomId, 
-     userId 
-   }))
-   ```
+### Room Limits
+
+Configure in code:
+- `MAX_ROOM_PARTICIPANTS` - Maximum users per room (default: 10)
+- `ROOM_TIMEOUT` - Room cleanup timeout (default: 1 hour)
 
 ## Testing
 
 ```bash
-# Unit tests
+# Run all tests
 pnpm test
 
-# API tests (requires running server)
-pnpm test:api
+# Run with coverage
+pnpm test -- --coverage
 
-# Test locally with curl
-curl -X POST http://localhost:8787/api/rooms
+# Run specific test
+pnpm test signaling.test.ts
 ```
+
+Test categories:
+- Unit tests for business logic
+- Integration tests for Socket.io events
+- API endpoint tests
+
+## Deployment
+
+### Docker
+
+```bash
+# Build image
+docker build -f Dockerfile.dev -t vibe-signaling .
+
+# Run container
+docker run -p 3005:3005 vibe-signaling
+```
+
+### PM2
+
+```bash
+# Start with PM2
+pm2 start dist/index.js --name vibe-signaling
+
+# View logs
+pm2 logs vibe-signaling
+```
+
+### Cloud Platforms
+
+#### Heroku
+```bash
+heroku create vibe-signaling
+heroku config:set CLIENT_URL=https://yourdomain.com
+git push heroku main
+```
+
+#### Railway/Render
+1. Connect GitHub repository
+2. Set environment variables
+3. Deploy automatically
+
+## Architecture
+
+### Room Management
+
+Rooms are managed in-memory with automatic cleanup:
+- Rooms are created on demand
+- Empty rooms are removed after timeout
+- Participant limits are enforced
+
+### Signaling Flow
+
+1. Client A creates/joins room
+2. Client B joins same room
+3. Server notifies all participants
+4. Clients exchange offers/answers via server
+5. ICE candidates are relayed
+6. P2P connection established
+
+### Scalability
+
+For horizontal scaling:
+- Use Redis adapter for Socket.io
+- Implement sticky sessions
+- Use external storage for room state
+
+## Monitoring
+
+### Health Checks
+
+```bash
+# Basic health check
+curl http://localhost:3005/health
+
+# Detailed health info
+curl http://localhost:3005/health?detailed=true
+```
+
+### Metrics
+
+Monitor these key metrics:
+- Active connections
+- Room count
+- Message throughput
+- Connection errors
 
 ## Troubleshooting
 
-### Durable Objects not working
-- Ensure you're on a paid Cloudflare plan
-- Check that migrations are applied: `wrangler migrations list`
+### Connection Issues
+- Check CORS configuration
+- Verify WebSocket upgrade headers
+- Test with `wscat` or similar tools
 
-### WebSocket connection fails
-- Check CORS settings
-- Ensure using `wss://` for secure connections
-- Verify room exists before connecting
+### Performance Issues
+- Monitor room sizes
+- Check for memory leaks
+- Enable WebSocket compression
 
-### High latency
-- Use Durable Objects for geographic distribution
-- Enable WebSocket compression in wrangler.toml
-- Consider using Cloudflare's anycast network
+### HTTPS Issues
+- Verify certificate paths
+- Check certificate validity
+- Test with `openssl s_client`
+
+## Security
+
+- Input validation on all messages
+- Rate limiting (planned)
+- Room ID validation
+- CORS restrictions
+- TLS encryption for production
+
+## License
+
+MIT

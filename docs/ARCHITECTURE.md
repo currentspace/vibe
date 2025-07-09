@@ -2,7 +2,7 @@
 
 ## Overview
 
-Vibe is a modern web application built with a microservices architecture, designed to support real-time WebRTC communication. The project follows a monorepo structure using pnpm workspaces, enabling efficient code sharing and dependency management.
+Vibe is a modern WebRTC video chat application built with a modular monorepo architecture using pnpm workspaces. The system is designed for real-time peer-to-peer communication with a scalable signaling infrastructure and reusable component library.
 
 ## System Architecture
 
@@ -20,198 +20,327 @@ Vibe is a modern web application built with a microservices architecture, design
          └────────────── WebRTC P2P Connection ───────────┘
 ```
 
-### Component Architecture
+### Monorepo Structure
 
-#### 1. Web Application (`apps/web`)
-
-**Technology Stack:**
-- Next.js 15.3.3 with App Router
-- React 19.1.0 with Server Components
-- TypeScript 5.x
-- Chakra UI v3 for component library
-- Socket.io-client for WebRTC signaling
-
-**Key Features:**
-- Server-side rendering with React Server Components
-- Client-side hydration with Turbopack
-- Real-time WebRTC communication
-- Responsive UI with Chakra UI
-
-**Directory Structure:**
 ```
-apps/web/
-├── src/
-│   ├── app/              # App router pages
-│   │   ├── layout.tsx    # Root layout with providers
-│   │   ├── page.tsx      # Home page
-│   │   └── demo/         # Demo page
-│   ├── components/       # Reusable components
-│   │   ├── Button.tsx    # UI components
-│   │   └── UserCard.tsx  # Server components
-│   └── providers.tsx     # Client-side providers
-└── public/               # Static assets
+vibe/
+├── apps/                    # Application packages
+│   ├── web/                # Next.js web application
+│   └── signaling/          # Express.js signaling server
+├── packages/               # Shared packages
+│   ├── core/              # Core business logic and types
+│   ├── api/               # API client and server utilities
+│   └── components/        # Shared React components
+└── infrastructure/        # Docker, Caddy configs
 ```
 
-#### 2. Signaling Server (`apps/signaling`)
+## Package Architecture
+
+### 1. Core Package (`@vibe/core`)
+
+**Purpose:** Shared business logic, types, and utilities
+
+**Key Exports:**
+- **Types:** `Participant`, `Room`, `SignalingMessage`, WebRTC types
+- **Utilities:** ID generation, validation, error handling
+- **Classes:** `ConnectionStateManager`, `RoomManager`, `SignalingCore`
+- **Constants:** Error codes, limits, configuration
+
+**Dependencies:** None (zero dependency package)
+
+### 2. API Package (`@vibe/api`)
+
+**Purpose:** Client-server communication layer
+
+**Key Exports:**
+- **Client:** `SignalingClient` - WebSocket client with event emitter
+- **Server:** REST route handlers, middleware
+- **Types:** API request/response types
+
+**Dependencies:** `@vibe/core`
+
+### 3. Components Package (`@vibe/components`)
+
+**Purpose:** Reusable React components and hooks
+
+**Key Exports:**
+- **Context:** `WebRTCProvider`, `useWebRTC` - WebRTC state management
+- **Hooks:** `useMediaStream`, `useRoomConnection`
+- **UI Components:** `VideoPlayer`, `MediaControls`, `ParticipantList`, `ConnectionStatus`
+
+**Dependencies:** `@vibe/core`, `@vibe/api`
+
+### 4. Web Application (`apps/web`)
 
 **Technology Stack:**
-- Express 5.x
-- Socket.io 4.x for WebSocket communication
-- TypeScript 5.x
-- UUID for room generation
+- Next.js 15.3 with App Router
+- React 19.1 with Server Components
+- Chakra UI 3.22 for styling
+- TypeScript 5.8
+
+**Architecture:**
+```
+apps/web/src/
+├── app/                    # App Router pages
+│   ├── layout.tsx         # Root layout with providers
+│   ├── page.tsx           # Landing page
+│   └── connect/           # Video chat interface
+├── components/            # App-specific components
+├── contexts/              # Legacy contexts (migrating to @vibe/components)
+└── lib/                   # Utilities
+```
 
 **Key Features:**
-- REST API for room management
-- WebSocket support for real-time signaling
-- Room-based peer connection management
-- CORS configuration for cross-origin requests
+- Server-side rendering with streaming
+- WebRTC peer connections via `@vibe/components`
+- Responsive design with Chakra UI
+- Real-time updates via Socket.io
+
+### 5. Signaling Server (`apps/signaling`)
+
+**Technology Stack:**
+- Express 5.1
+- Socket.io 4.8
+- TypeScript 5.8
+- OpenAPI/Swagger documentation
+
+**Architecture:**
+```
+apps/signaling/src/
+├── index.ts               # Server entry point
+├── api-docs.ts           # OpenAPI specification
+├── https-config.ts       # TLS configuration
+└── __tests__/            # Integration tests
+```
 
 **API Endpoints:**
-- `GET /health` - Service health check
-- `POST /api/rooms` - Create a new room
-- `GET /api/rooms/:roomId` - Get room information
+- `GET /health` - Health check
+- `POST /api/rooms` - Create room
+- `GET /api/rooms/:roomId` - Get room info
+- `GET /api-docs` - Swagger UI
 
 **WebSocket Events:**
-- `join-room` - Join a signaling room
-- `leave-room` - Leave a signaling room
+- `join-room` - Join a room with userId
+- `leave-room` - Leave current room
 - `offer` - Send WebRTC offer
 - `answer` - Send WebRTC answer
 - `ice-candidate` - Exchange ICE candidates
+- `user-joined` - Broadcast user joined
+- `user-left` - Broadcast user left
 
-### Data Flow
+## Data Flow
 
-#### WebRTC Connection Establishment
+### Connection Establishment Flow
 
-1. **Room Creation**
-   ```
-   Client → POST /api/rooms → Signaling Server
-   Server → { roomId: "uuid" } → Client
-   ```
-
-2. **Peer Connection**
-   ```
-   Client A → join-room → Signaling Server
-   Client B → join-room → Signaling Server
-   Server → user-joined → All Clients
-   ```
-
-3. **Signaling Exchange**
-   ```
-   Client A → offer → Server → Client B
-   Client B → answer → Server → Client A
-   Both → ice-candidate → Server → Other
-   ```
+```mermaid
+sequenceDiagram
+    participant Client A
+    participant Signaling
+    participant Client B
+    
+    Client A->>Signaling: connect()
+    Signaling->>Client A: connected
+    
+    Client A->>Signaling: createRoom()
+    Signaling->>Client A: roomId
+    
+    Client B->>Signaling: connect()
+    Signaling->>Client B: connected
+    
+    Client B->>Signaling: joinRoom(roomId)
+    Signaling->>Client A: user-joined
+    Signaling->>Client B: room-joined
+    
+    Client A->>Signaling: offer
+    Signaling->>Client B: offer
+    
+    Client B->>Signaling: answer
+    Signaling->>Client A: answer
+    
+    Client A->>Signaling: ice-candidate
+    Signaling->>Client B: ice-candidate
+    
+    Client B->>Signaling: ice-candidate
+    Signaling->>Client A: ice-candidate
+    
+    Note over Client A,Client B: P2P Connection Established
+```
 
 ### State Management
 
-#### Client State
-- React Context for global app state
-- Local component state for UI interactions
-- WebRTC peer connection state management
+#### Client-Side State
 
-#### Server State
-- In-memory room storage (Map)
-- Socket.io connection management
+**WebRTCContext** manages:
+- Connection state (NEW, CONNECTING, CONNECTED, FAILED, CLOSED)
+- Room information (roomId, participants)
+- Peer connections (Map<userId, RTCPeerConnection>)
+- Media streams (local and remote)
+
+**React Query** for:
+- Server state caching
+- Optimistic updates
+- Background refetching
+
+#### Server-Side State
+
+**In-Memory Storage:**
+- Rooms: `Map<roomId, Room>`
+- Participants: `Map<connectionId, Participant>`
 - No persistent storage (stateless design)
 
-### Security Considerations
+## Infrastructure
 
-1. **CORS Configuration**
-   - Restricted to localhost origins in development
-   - Environment-based configuration for production
+### Docker Architecture
 
-2. **Input Validation**
-   - UUID validation for room IDs
-   - Sanitization of user inputs
-
-3. **Transport Security**
-   - HTTPS enforcement in production
-   - Secure WebSocket connections (WSS)
-
-### Scalability Considerations
-
-#### Horizontal Scaling
-- Stateless signaling server design
-- Redis adapter for Socket.io (future)
-- Load balancer compatibility
-
-#### Performance Optimizations
-- Turbopack for faster development builds
-- React Server Components for reduced client bundle
-- Efficient WebSocket message routing
-
-### Future Architecture Enhancements
-
-1. **STUN/TURN Integration**
-   - Coturn server deployment
-   - NAT traversal support
-   - Relay server fallback
-
-2. **Media Server (Optional)**
-   - Recording capabilities
-   - Multi-party conference support
-   - Stream processing
-
-3. **Persistent Storage**
-   - PostgreSQL for user data
-   - Redis for session management
-   - S3 for media storage
-
-4. **Monitoring & Observability**
-   - Prometheus metrics
-   - ELK stack for logging
-   - Distributed tracing
-
-### Development Patterns
-
-#### Separation of Concerns
-- Presentation layer (React components)
-- Business logic (Server actions/API routes)
-- Data layer (Future database integration)
-
-#### Code Reusability
-- Shared TypeScript types (future packages/)
-- Common utilities and helpers
-- Consistent error handling
-
-#### Testing Strategy
-- Unit tests for business logic
-- Integration tests for APIs
-- E2E tests for critical user flows
-
-### Deployment Architecture
-
-```
-┌─────────────────┐     ┌──────────────────┐
-│   CDN/Vercel    │     │  Cloud Provider  │
-│   (Web App)     │     │ (Signaling API)  │
-└─────────────────┘     └──────────────────┘
-         │                        │
-         └────────────────────────┘
-                     │
-              ┌──────────────┐
-              │ Load Balancer│
-              └──────────────┘
+```yaml
+services:
+  caddy:        # Reverse proxy with HTTP/3
+  web:          # Next.js application
+  signaling:    # Express signaling server
 ```
 
-### Technology Decisions Rationale
+**Features:**
+- HTTP/3 (QUIC) support via Caddy
+- Automatic HTTPS with Let's Encrypt
+- Health checks and monitoring
+- Container networking isolation
 
-1. **Next.js + React 19**
-   - Server Components for better performance
-   - Built-in optimization features
-   - Excellent developer experience
+### Security Architecture
 
-2. **pnpm Monorepo**
-   - Efficient disk space usage
-   - Better dependency management
-   - Fast installation times
+1. **Transport Security**
+   - TLS 1.3 for all connections
+   - HTTP/3 with 0-RTT support
+   - Secure WebSocket (WSS)
 
-3. **TypeScript**
-   - Type safety across the stack
-   - Better IDE support
-   - Reduced runtime errors
+2. **CORS Configuration**
+   - Strict origin validation
+   - Credentials support for cookies
+   - Preflight request handling
 
-4. **Socket.io**
-   - Reliable WebSocket fallbacks
-   - Room-based communication
-   - Extensive ecosystem
+3. **Input Validation**
+   - Type-safe message validation
+   - Room ID format verification
+   - Rate limiting (planned)
+
+4. **Content Security Policy**
+   - Strict CSP headers
+   - XSS protection
+   - Frame options security
+
+## Scalability Strategy
+
+### Horizontal Scaling
+
+1. **Stateless Signaling Servers**
+   - No server affinity required
+   - Load balancer compatible
+   - Health check endpoints
+
+2. **Redis Adapter (Future)**
+   - Socket.io Redis adapter
+   - Pub/sub for room events
+   - Session persistence
+
+3. **CDN Integration**
+   - Static asset caching
+   - Edge deployment for web app
+   - Global distribution
+
+### Performance Optimizations
+
+1. **Build Optimizations**
+   - tsup for fast package builds
+   - Turbopack for development
+   - Tree shaking and minification
+
+2. **Runtime Optimizations**
+   - React Server Components
+   - Code splitting
+   - Lazy loading
+
+3. **Network Optimizations**
+   - HTTP/3 multiplexing
+   - WebSocket compression
+   - Efficient serialization
+
+## Development Patterns
+
+### Code Organization
+
+1. **Separation of Concerns**
+   - Business logic in `@vibe/core`
+   - UI components in `@vibe/components`
+   - Application logic in apps
+
+2. **Dependency Direction**
+   - Apps depend on packages
+   - Packages don't depend on apps
+   - Core has no dependencies
+
+3. **Type Safety**
+   - Shared types in `@vibe/core`
+   - Strict TypeScript configuration
+   - Runtime validation
+
+### Testing Strategy
+
+1. **Unit Tests**
+   - Vitest for all packages
+   - Testing Library for React
+   - Mock WebRTC APIs
+
+2. **Integration Tests**
+   - API endpoint testing
+   - WebSocket event testing
+   - Component integration
+
+3. **E2E Tests (Planned)**
+   - Playwright for browser testing
+   - Real WebRTC connections
+   - Multi-browser support
+
+## Future Enhancements
+
+### Phase 1: Infrastructure
+- [ ] Redis for horizontal scaling
+- [ ] Kubernetes deployment
+- [ ] Monitoring with OpenTelemetry
+- [ ] CI/CD with GitHub Actions
+
+### Phase 2: Features
+- [ ] TURN server integration
+- [ ] Screen sharing support
+- [ ] Chat functionality
+- [ ] Recording capabilities
+
+### Phase 3: Advanced
+- [ ] Media server for large rooms
+- [ ] AI-powered features
+- [ ] Virtual backgrounds
+- [ ] Breakout rooms
+
+## Technology Decisions
+
+### Why Monorepo?
+- **Code Sharing:** Shared types and utilities
+- **Atomic Changes:** Update everything together
+- **Better Refactoring:** Move code between packages
+- **Single Version:** Consistent dependencies
+
+### Why pnpm?
+- **Disk Efficiency:** Hard links save space
+- **Speed:** Faster than npm/yarn
+- **Strict:** No phantom dependencies
+- **Workspaces:** First-class monorepo support
+
+### Why TypeScript?
+- **Type Safety:** Catch errors at compile time
+- **IDE Support:** Better autocomplete
+- **Documentation:** Types serve as docs
+- **Refactoring:** Confident code changes
+
+### Why Next.js 15?
+- **Performance:** Server Components
+- **Developer Experience:** Fast refresh
+- **Production Ready:** Built-in optimizations
+- **Full Stack:** API routes included
