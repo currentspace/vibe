@@ -4,7 +4,7 @@
  */
 
 import { Server, Socket } from 'socket.io'
-import { ConnectionAdapter, SignalingMessage } from '../core/types'
+import { ConnectionAdapter, SignalingMessage } from '@vibe/core'
 
 export class SocketIOAdapter implements ConnectionAdapter {
   private sockets = new Map<string, Socket>()

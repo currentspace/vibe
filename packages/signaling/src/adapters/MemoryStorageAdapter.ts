@@ -3,7 +3,7 @@
  * Used for development and simple deployments
  */
 
-import { Room, Participant, StorageAdapter } from '../core/types'
+import { Room, Participant, StorageAdapter } from '@vibe/core'
 
 export class MemoryStorageAdapter implements StorageAdapter {
   private rooms = new Map<string, Room>()

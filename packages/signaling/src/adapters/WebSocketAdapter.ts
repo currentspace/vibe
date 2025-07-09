@@ -3,7 +3,7 @@
  * Handles native WebSocket connections
  */
 
-import { ConnectionAdapter, SignalingMessage } from '../core/types'
+import { ConnectionAdapter, SignalingMessage } from '@vibe/core'
 
 export class WebSocketAdapter implements ConnectionAdapter {
   private connections = new Map<string, WebSocket>()

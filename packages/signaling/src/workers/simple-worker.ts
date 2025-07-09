@@ -6,7 +6,7 @@
 import { SignalingCore } from '../core/SignalingCore'
 import { MemoryStorageAdapter } from '../adapters/MemoryStorageAdapter'
 import { WebSocketAdapter } from '../adapters/WebSocketAdapter'
-import { SignalingMessage } from '../core/types'
+import { SignalingMessage } from '@vibe/core'
 
 export interface Env {
   // Environment bindings

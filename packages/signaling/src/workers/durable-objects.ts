@@ -5,7 +5,7 @@
 
 import { DurableObject } from 'cloudflare:workers'
 import { SignalingCore } from '../core/SignalingCore'
-import { StorageAdapter, Room, Participant } from '../core/types'
+import { StorageAdapter, Room, Participant } from '@vibe/core'
 import { WebSocketAdapter } from '../adapters/WebSocketAdapter'
 
 // Durable Object storage adapter

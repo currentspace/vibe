@@ -10,7 +10,7 @@ import {
   ConnectionAdapter, 
   StorageAdapter,
   MessageType 
-} from './types'
+} from '@vibe/core'
 
 export class SignalingCore {
   constructor(
