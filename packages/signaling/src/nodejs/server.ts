@@ -10,6 +10,13 @@ import { Server } from 'socket.io'
 import { SignalingCore } from '../core/SignalingCore'
 import { MemoryStorageAdapter } from '../adapters/MemoryStorageAdapter'
 import { SocketIOAdapter } from '../adapters/SocketIOAdapter'
+import { 
+  API_ROUTES, 
+  type CreateRoomResponse, 
+  type GetRoomResponse, 
+  type HealthCheckResponse,
+  type ErrorResponse 
+} from '@vibe/api'
 // import { setupApiDocs } from '../api-docs'
 
 const app = express()
@@ -34,12 +41,17 @@ app.use(cors())
 app.use(express.json())
 
 // REST API routes
-app.post('/api/rooms', async (req, res) => {
+app.post(API_ROUTES.rooms.create, async (req, res) => {
   try {
     const roomId = await signaling.createRoom()
-    res.json({ roomId })
+    const response: CreateRoomResponse = { roomId }
+    res.json(response)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create room' })
+    const errorResponse: ErrorResponse = { 
+      error: 'Failed to create room',
+      statusCode: 500 
+    }
+    res.status(500).json(errorResponse)
   }
 })
 
@@ -47,25 +59,35 @@ app.get('/api/rooms/:roomId', async (req, res) => {
   try {
     const room = await signaling.getRoomInfo(req.params.roomId)
     if (!room) {
-      return res.status(404).json({ error: 'Room not found' })
+      const errorResponse: ErrorResponse = { 
+        error: 'Room not found',
+        statusCode: 404 
+      }
+      return res.status(404).json(errorResponse)
     }
     
-    res.json({
+    const response: GetRoomResponse = {
       roomId: room.id,
       createdAt: room.createdAt.toISOString(),
       participantCount: room.participants.size,
-    })
+    }
+    res.json(response)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get room info' })
+    const errorResponse: ErrorResponse = { 
+      error: 'Failed to get room info',
+      statusCode: 500 
+    }
+    res.status(500).json(errorResponse)
   }
 })
 
-app.get('/health', (req, res) => {
-  res.json({
+app.get(API_ROUTES.health, (req, res) => {
+  const response: HealthCheckResponse = {
     status: 'healthy',
     mode: 'nodejs',
     timestamp: new Date().toISOString(),
-  })
+  }
+  res.json(response)
 })
 
 // Setup API documentation

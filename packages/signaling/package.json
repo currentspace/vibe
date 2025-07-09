@@ -27,6 +27,7 @@
     "docs:serve": "echo 'API docs available at http://localhost:4000/api-docs when running the server'"
   },
   "dependencies": {
+    "@vibe/api": "workspace:*",
     "@vibe/core": "workspace:*",
     "cors": "^2.8",
     "dotenv": "^17.1",

@@ -22,6 +22,7 @@
     "@react-three/drei": "^9.119",
     "@react-three/fiber": "^9.0",
     "@react-three/postprocessing": "^3.0.4",
+    "@vibe/api": "workspace:*",
     "@vibe/core": "workspace:*",
     "next": "15.3",
     "react": "^19.1",
