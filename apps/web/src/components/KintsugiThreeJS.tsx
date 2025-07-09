@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { Canvas, useFrame, useLoader } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import { Box as ChakraBox, Text, VStack, HStack, Heading } from '@chakra-ui/react'
+import { Box as ChakraBox, Text, VStack, HStack, Heading, Button } from '@chakra-ui/react'
 import * as THREE from 'three'
 
 // Parameter interface
@@ -58,11 +58,18 @@ function generateCrackCurves({
   crackCount = 5,
   branchChance = 0.3,
   curviness = 0.7,
+  seed = 0,
 }: {
   crackCount: number
   branchChance: number
   curviness: number
+  seed?: number
 }) {
+  // Seeded random function
+  const seededRandom = (s: number) => {
+    const x = Math.sin(s + seed) * 10000
+    return x - Math.floor(x)
+  }
   const cracks: Array<{
     points: THREE.Vector3[]
     widths: number[]
@@ -91,13 +98,13 @@ function generateCrackCurves({
   // Generate main cracks
   for (let i = 0; i < crackCount; i++) {
     // Start from a random edge
-    const startEdge = Math.random()
+    const startEdge = seededRandom(i * 100)
     const start = getEdgePoint(startEdge)
 
     // End at a different edge
-    let endEdge = Math.random()
+    let endEdge = seededRandom(i * 100 + 1)
     while (Math.abs(endEdge - startEdge) < 0.15) {
-      endEdge = Math.random()
+      endEdge = seededRandom(i * 100 + Math.random() * 1000)
     }
     const end = getEdgePoint(endEdge)
 
@@ -321,15 +328,16 @@ function createCrackGeometry(
 /**
  * Kintsugi Mesh Component with gold crack lines
  */
-function KintsugiMesh({ params }: { params: KintsugiParams }) {
+function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSeed: number }) {
   const groupRef = useRef<THREE.Group>(null)
   const sharedMaterialRef = useRef<THREE.ShaderMaterial>(null)
 
-  // Load textures
-  const [slateTexture, goldTexture] = useLoader(THREE.TextureLoader, ['/slate.png', '/gold.png'])
-
-  // Optional: Load normal map if it exists
-  const slateNormalMap = useLoader(THREE.TextureLoader, '/slate_normal.png')
+  // Load textures - add placeholder for normal map
+  const [slateTexture, goldTexture, slateNormalMap] = useLoader(THREE.TextureLoader, [
+    '/slate.png',
+    '/gold.png',
+    '/slate_normal.png',
+  ])
 
   // Set texture properties and renderer clipping
   useEffect(() => {
@@ -342,6 +350,7 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
     goldTexture.magFilter = THREE.LinearFilter
     goldTexture.minFilter = THREE.LinearMipmapLinearFilter
 
+    // If you add a normal map:
     slateNormalMap.wrapS = slateNormalMap.wrapT = THREE.ClampToEdgeWrapping
   }, [slateTexture, goldTexture, slateNormalMap])
 
@@ -351,13 +360,20 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
       crackCount: params.crackCount,
       branchChance: params.branchProbability,
       curviness: params.crackCurviness,
+      seed: randomSeed,
     })
 
     return curves.map((crack) => ({
       geometry: createCrackGeometry(crack.points, crack.widths, params.crackThickness),
       isBranch: crack.isBranch,
     }))
-  }, [params.crackCount, params.crackThickness, params.branchProbability, params.crackCurviness])
+  }, [
+    params.crackCount,
+    params.crackThickness,
+    params.branchProbability,
+    params.crackCurviness,
+    randomSeed,
+  ])
 
   // Create shared shader material for all cracks
   const goldMaterial = useMemo(() => {
@@ -399,65 +415,48 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
         varying float vCrackIndex;
         
         void main() {
-          // Soft edge alpha
-          float edgeAlpha = smoothstep(0.02, 0.15, min(vUv.x, 1.0 - vUv.x));
+          // CLIP: Discard fragments outside slate bounds
+          if (abs(vPosition.x) > 2.0 || abs(vPosition.y) > 2.0) discard;
           
-          // Flow animation along crack length - make it flow along the crack
+          // Soft edge alpha - increased feather
+          float edgeAlpha = smoothstep(0.02, 0.2, min(vUv.x, 1.0 - vUv.x));
+          
+          // Subtle texture scroll for base pattern
           vec2 flowUv = vUv;
-          // Primary flow along the crack (y direction in UV space)
-          flowUv.y += time * flowSpeed * 0.5;
-          // Add some perpendicular waviness
-          flowUv.x += sin(flowUv.y * 8.0 + time * 2.0) * 0.1;
+          flowUv.y += time * flowSpeed * 0.05; // Very slow scroll
+          flowUv.x += sin(flowUv.y * 10.0 + time) * 0.02;
           
-          // Secondary flow layer for complexity
-          vec2 flowUv2 = vUv;
-          flowUv2.y += time * flowSpeed * 0.3;
-          flowUv2.x += cos(flowUv2.y * 6.0 + time * 1.5) * 0.08;
+          // Sample gold texture
+          vec4 gold = texture2D(goldTexture, flowUv);
           
-          // Tertiary micro flow
-          vec2 flowUv3 = vUv * 3.0;
-          flowUv3.y += time * flowSpeed * 1.2;
+          // LAVA PULSE: Animate hot core moving along crack length
+          float crackFlow = fract(vUv.y * 2.0 + time * flowSpeed * 0.15);
+          float hotCore = exp(-pow((crackFlow - 0.5) * 3.0, 2.0));
           
-          // Sample gold texture with multiple layers
-          vec4 gold1 = texture2D(goldTexture, flowUv);
-          vec4 gold2 = texture2D(goldTexture, flowUv2);
-          vec4 gold3 = texture2D(goldTexture, flowUv3);
-          vec4 gold = gold1 * 0.5 + gold2 * 0.3 + gold3 * 0.2;
+          // Add secondary pulse at different speed
+          float crackFlow2 = fract(vUv.y * 3.0 - time * flowSpeed * 0.2);
+          float hotCore2 = exp(-pow((crackFlow2 - 0.5) * 4.0, 2.0));
           
-          // Create flowing lava effect that moves along the crack
-          float flowPosition = vUv.y - time * flowSpeed * 0.5;
+          // Combine pulses
+          float totalHeat = hotCore * 0.7 + hotCore2 * 0.3;
           
-          // Multiple wave frequencies for natural lava flow
-          float wave1 = sin(flowPosition * 10.0) * 0.5 + 0.5;
-          float wave2 = sin(flowPosition * 25.0 + 2.0) * 0.3 + 0.7;
-          float wave3 = sin(flowPosition * 40.0 - 1.0) * 0.2 + 0.8;
-          float flowing = wave1 * wave2 * wave3;
+          // Flicker for realism
+          float flicker = 0.7 + 0.4 * sin(time * 11.0 + vUv.y * 18.0 + vPosition.x * 7.0);
           
-          // Pulsing glow that travels with the flow
-          float pulse = sin(flowPosition * 15.0 + time * 2.0) * 0.5 + 0.5;
-          float glow = pulse * lavaGlow * flowing;
+          // Moving shimmer waves
+          float shimmer = 1.0 + sin(time * 4.0 + vPosition.x * 15.0 + vPosition.y * 15.0) * shimmerIntensity;
           
-          // Shimmer waves
-          float shimmer1 = sin(time * 4.0 + vPosition.x * 20.0 + vPosition.y * 20.0) * shimmerIntensity;
-          float shimmer2 = sin(time * 6.0 - vPosition.x * 15.0 + vPosition.y * 25.0) * shimmerIntensity * 0.5;
-          float shimmer = 1.0 + shimmer1 + shimmer2;
+          // Base gold color
+          vec3 goldBase = gold.rgb * goldIntensity * shimmer;
           
-          // Hot spots that flow along the crack
-          float hotFlow = vUv.y - time * flowSpeed * 0.7;
-          float hotspot1 = smoothstep(0.4, 0.6, sin(hotFlow * 30.0));
-          float hotspot2 = smoothstep(0.3, 0.7, sin(hotFlow * 20.0 + 3.14));
-          float hotspot = (hotspot1 + hotspot2 * 0.5) * lavaGlow * flowAnimation;
+          // Lava glow - bright orange/yellow pulse
+          vec3 lavaPulse = vec3(1.0, 0.85, 0.4) * lavaGlow * totalHeat * flicker * flowAnimation;
           
-          // Combine effects
-          vec3 finalColor = gold.rgb * goldIntensity;
-          finalColor *= (glow * 0.7 + 0.3) * shimmer * (flowing * 0.5 + 0.5);
+          // Combine
+          vec3 finalColor = goldBase + lavaPulse;
           
-          // Add orange/red tints for lava effect
-          finalColor.r += hotspot * 0.4 * lavaGlow;
-          finalColor.g += hotspot * 0.15 * lavaGlow;
-          
-          // Emit light
-          vec3 emission = vec3(1.0, 0.7, 0.3) * goldIntensity * 0.6 * (glow + hotspot * 0.5);
+          // Emission based on heat
+          vec3 emission = finalColor * (totalHeat * 0.6 + 0.1);
           
           gl_FragColor = vec4(finalColor + emission, edgeAlpha);
         }
@@ -532,9 +531,10 @@ function KintsugiMesh({ params }: { params: KintsugiParams }) {
         <planeGeometry args={[4, 4]} />
         <meshStandardMaterial
           map={slateTexture}
+          normalMap={slateNormalMap}
+          normalScale={new THREE.Vector2(1, 1)}
           roughness={0.9}
           metalness={0.1}
-          // Normal map would go here: normalMap={slateNormalMap}
         />
       </mesh>
 
@@ -649,6 +649,7 @@ function ParamSlider({
  */
 export default function KintsugiThreeJS() {
   const [fps, setFps] = useState(0)
+  const [randomSeed, setRandomSeed] = useState(0)
   const [params, setParams] = useState<KintsugiParams>({
     crackCount: 5,
     crackThickness: 0.5,
@@ -693,7 +694,7 @@ export default function KintsugiThreeJS() {
 
           {/* Kintsugi Mesh */}
           <React.Suspense fallback={null}>
-            <KintsugiMesh params={params} />
+            <KintsugiMesh params={params} randomSeed={randomSeed} />
           </React.Suspense>
 
           {/* Interactive Controls */}
@@ -741,7 +742,12 @@ export default function KintsugiThreeJS() {
         align="stretch"
         gap={6}
       >
-        <Heading size="md">Kintsugi Parameters</Heading>
+        <HStack justify="space-between" align="center">
+          <Heading size="md">Kintsugi Parameters</Heading>
+          <Button size="sm" variant="outline" onClick={() => setRandomSeed(Date.now())}>
+            New Cracks
+          </Button>
+        </HStack>
 
         <VStack align="stretch" gap={4}>
           <Heading size="sm">Crack Properties</Heading>
