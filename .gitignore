@@ -55,5 +55,6 @@ next-env.d.ts
 *.key
 localhost*.pem
 
-apps/signaling/.pnpm-store
-apps/web/.pnpm-store
+# pnpm store
+.pnpm-store/
+**/.pnpm-store/
