@@ -8,13 +8,16 @@ This project uses a monorepo structure managed by pnpm workspaces:
 
 ```
 vibe/
-├── apps/                    # Application packages
+├── apps/                    # End-user applications
 │   ├── web/                # Next.js web application
 │   └── signaling/          # Express.js signaling server
-├── packages/               # Shared packages
+├── packages/               # Shared packages and libraries
 │   ├── core/              # Core business logic and types
 │   ├── api/               # API client and server utilities
-│   └── components/        # Shared React components
+│   ├── components/        # Shared React components (web)
+│   ├── components-native/ # Shared React Native components (planned)
+│   ├── mobile/            # React Native client package (planned)
+│   └── shaders/           # Shared shader code (planned)
 └── docs/                  # Documentation
 ```
 
@@ -29,7 +32,10 @@ vibe/
 
 - **`packages/core`** - Core types, utilities, and business logic shared across packages
 - **`packages/api`** - API client (SignalingClient) and server utilities
-- **`packages/components`** - Reusable React components (WebRTCContext, UI components, hooks)
+- **`packages/components`** - Reusable React components for web (WebRTCContext, UI components, hooks)
+- **`packages/components-native`** - React Native components and hooks (planned)
+- **`packages/mobile`** - React Native client package with native WebRTC (planned)
+- **`packages/shaders`** - Shared shader code for web and native (planned)
 
 ## 🚀 Quick Start
 
@@ -235,7 +241,10 @@ The signaling server provides OpenAPI documentation at `http://localhost:3005/ap
 ### Shared Packages
 - **@vibe/core** - Business logic, types, utilities
 - **@vibe/api** - API client and server utilities
-- **@vibe/components** - React components and hooks
+- **@vibe/components** - React components and hooks (web)
+- **@vibe/components-native** - React Native components (planned)
+- **@vibe/mobile** - React Native client package (planned)
+- **@vibe/shaders** - Shared shader code (planned)
 
 ### Infrastructure
 - **pnpm** - Fast, disk space efficient package manager
