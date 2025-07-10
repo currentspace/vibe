@@ -58,3 +58,55 @@ localhost*.pem
 # pnpm store
 .pnpm-store/
 **/.pnpm-store/
+
+# React Native / Expo
+packages/mobile/.expo/
+packages/mobile/.expo-shared/
+
+# iOS
+packages/mobile/ios/build/
+packages/mobile/ios/Pods/
+packages/mobile/ios/DerivedData/
+packages/mobile/ios/*.xcuserstate
+packages/mobile/ios/*.xcworkspace/xcuserdata/
+packages/mobile/ios/*.xcodeproj/xcuserdata/
+packages/mobile/ios/*.ipa
+packages/mobile/ios/*.dSYM.zip
+packages/mobile/ios/*.dSYM
+packages/mobile/ios/.xcode.env.local
+
+# Android
+packages/mobile/android/build/
+packages/mobile/android/app/build/
+packages/mobile/android/.gradle/
+packages/mobile/android/app/.cxx/
+packages/mobile/android/local.properties
+packages/mobile/android/*.iml
+packages/mobile/android/app/*.iml
+packages/mobile/android/.idea/
+packages/mobile/android/app/release/
+packages/mobile/android/*.jks
+packages/mobile/android/*.keystore
+!packages/mobile/android/app/debug.keystore
+packages/mobile/android/*.apk
+packages/mobile/android/*.aab
+packages/mobile/android/*.hprof
+
+# Metro
+packages/mobile/.metro-health-check*
+packages/mobile/metro-cache/
+
+# Bundle artifacts
+packages/mobile/*.jsbundle
+packages/mobile/android/app/src/main/assets/index.android.bundle
+packages/mobile/ios/main.jsbundle
+
+# Fastlane
+packages/mobile/*/fastlane/report.xml
+packages/mobile/*/fastlane/Preview.html
+packages/mobile/*/fastlane/screenshots
+packages/mobile/*/fastlane/test_output
+
+# Buck
+packages/mobile/buck-out/
+packages/mobile/.buckd/

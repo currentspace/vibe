@@ -1,0 +1,32 @@
+{
+  "name": "@vibe/mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "dev": "expo run:ios",
+    "dev:ios": "expo run:ios",
+    "dev:android": "expo run:android",
+    "prebuild": "expo prebuild",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No tests yet\"",
+    "build": "echo \"Mobile build not configured yet\""
+  },
+  "dependencies": {
+    "expo": "54.0.0-canary-20250709-136b77f",
+    "expo-dev-client": "5.1.9-canary-20250709-136b77f",
+    "expo-status-bar": "2.2.4-canary-20250709-136b77f",
+    "expo-system-ui": "5.0.11-canary-20250709-136b77f",
+    "react": "^19.1",
+    "react-native": "0.80.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7",
+    "@types/react": "^19.1",
+    "typescript": "^5.8"
+  },
+  "private": true
+}
