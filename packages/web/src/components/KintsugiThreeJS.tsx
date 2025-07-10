@@ -914,6 +914,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     slateTexture, 
     goldTexture, 
     slateNormalMap,
+    slateDisplacementMap,
+    slateSpecularMap,
+    slateAOMap,
     goldAlbedo,
     goldNormal,
     goldRoughness,
@@ -924,6 +927,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     '/slate.png',
     '/gold.png',
     '/slate_normal.png',
+    '/slate_displacement.png',
+    '/slate_specular.png',
+    '/slate_ambient.png',
     '/hammered-gold-bl/hammered-gold_albedo.png',
     '/hammered-gold-bl/hammered-gold_normal-ogl.png',
     '/hammered-gold-bl/hammered-gold_roughness.png',
@@ -934,10 +940,23 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
 
   // Set texture properties and renderer clipping
   useEffect(() => {
+    // Configure slate textures
     slateTexture.wrapS = slateTexture.wrapT = THREE.ClampToEdgeWrapping
+    slateNormalMap.wrapS = slateNormalMap.wrapT = THREE.ClampToEdgeWrapping
+    slateDisplacementMap.wrapS = slateDisplacementMap.wrapT = THREE.ClampToEdgeWrapping
+    slateSpecularMap.wrapS = slateSpecularMap.wrapT = THREE.ClampToEdgeWrapping
+    slateAOMap.wrapS = slateAOMap.wrapT = THREE.ClampToEdgeWrapping
+    
+    // Set appropriate color spaces
+    slateTexture.colorSpace = THREE.SRGBColorSpace
+    slateSpecularMap.colorSpace = THREE.SRGBColorSpace
+    
+    // Configure gold textures
     goldTexture.wrapS = goldTexture.wrapT = THREE.RepeatWrapping
     // Smaller repeat for more visible flow pattern
     goldTexture.repeat.set(0.2, 0.5)
+    
+    // Filtering for all textures
     slateTexture.magFilter = THREE.LinearFilter
     slateTexture.minFilter = THREE.LinearMipmapLinearFilter
     goldTexture.magFilter = THREE.LinearFilter
@@ -956,7 +975,7 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       tex.generateMipmaps = true
       tex.anisotropy = 8 // Increased for sharper textures at angles
     })
-  }, [slateTexture, goldTexture, slateNormalMap, goldAlbedo, goldNormal, goldRoughness, goldMetallic, goldAO, goldHeight])
+  }, [slateTexture, goldTexture, slateNormalMap, slateDisplacementMap, slateSpecularMap, slateAOMap, goldAlbedo, goldNormal, goldRoughness, goldMetallic, goldAO, goldHeight])
 
   // Generate base crack data only when seed changes
   // const baseCrackData = useMemo(() => {
@@ -1004,6 +1023,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
         textureFlowSpeed: { value: 0.17 },
         specularPower: { value: 90.0 },
         lateralMotion: { value: 0.0 },
+        maxLuminance: { value: 2.0 },
+        fresnelPower: { value: 3.0 },
+        anisotropyStrength: { value: 0.5 },
       },
       vertexShader: `
         attribute float phaseOffset;
@@ -1057,6 +1079,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
         uniform sampler2D goldRoughness;
         uniform sampler2D goldMetallic;
         uniform sampler2D goldAO;
+        uniform float maxLuminance;
+        uniform float fresnelPower;
+        uniform float anisotropyStrength;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
         varying vec3 vNormal;
@@ -1082,6 +1107,52 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
           float d = fract(sin(dot(i+vec2(1.0,1.0), vec2(127.1,311.7))) * 43758.5453);
           vec2 u = f*f*(3.0-2.0*f);
           return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+        }
+        
+        // Perlin noise implementation for organic textures
+        float perlinNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // Improved fade curve
+          
+          float n00 = dot(vec2(fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453) - 0.5,
+                               fract(sin(dot(i, vec2(269.5, 183.3))) * 43758.5453) - 0.5), f);
+          float n10 = dot(vec2(fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453) - 0.5,
+                               fract(sin(dot(i + vec2(1.0, 0.0), vec2(269.5, 183.3))) * 43758.5453) - 0.5), f - vec2(1.0, 0.0));
+          float n01 = dot(vec2(fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453) - 0.5,
+                               fract(sin(dot(i + vec2(0.0, 1.0), vec2(269.5, 183.3))) * 43758.5453) - 0.5), f - vec2(0.0, 1.0));
+          float n11 = dot(vec2(fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453) - 0.5,
+                               fract(sin(dot(i + vec2(1.0, 1.0), vec2(269.5, 183.3))) * 43758.5453) - 0.5), f - vec2(1.0, 1.0));
+          
+          return mix(mix(n00, n10, u.x), mix(n01, n11, u.x), u.y) * 0.5 + 0.5;
+        }
+        
+        // GGX microfacet distribution
+        float distributionGGX(vec3 N, vec3 H, float roughness) {
+          float a = roughness * roughness;
+          float a2 = a * a;
+          float NdotH = max(dot(N, H), 0.0);
+          float NdotH2 = NdotH * NdotH;
+          
+          float denom = NdotH2 * (a2 - 1.0) + 1.0;
+          denom = 3.14159265359 * denom * denom;
+          
+          return a2 / denom;
+        }
+        
+        // Smith's G function for masking/shadowing
+        float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+          float NdotV = max(dot(N, V), 0.0);
+          float NdotL = max(dot(N, L), 0.0);
+          float ggx1 = NdotL / (NdotL * (1.0 - roughness) + roughness);
+          float ggx2 = NdotV / (NdotV * (1.0 - roughness) + roughness);
+          
+          return ggx1 * ggx2;
+        }
+        
+        // Fresnel Schlick approximation with roughness
+        vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+          return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), fresnelPower);
         }
         
         void main() {
@@ -1128,11 +1199,13 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
           float metallic = texture2D(goldMetallic, pbrUv).r;
           float ao = texture2D(goldAO, pbrUv).r;
           
-          // Add procedural hammered texture
-          float hammered = valueNoise(pbrUv * 80.0 + time * 0.2);
-          float hammered2 = valueNoise(pbrUv * 150.0 - time * 0.1);
-          normalMap.xy += (hammered - 0.5) * 0.15;
-          normalMap.xy += (hammered2 - 0.5) * 0.08;
+          // Add procedural hammered texture using Perlin noise
+          float hammered = perlinNoise(pbrUv * 40.0 + time * 0.1);
+          float hammered2 = perlinNoise(pbrUv * 90.0 - time * 0.05);
+          float hammered3 = perlinNoise(pbrUv * 200.0 + vec2(time * 0.03, 0.0));
+          normalMap.xy += (hammered - 0.5) * 0.2;
+          normalMap.xy += (hammered2 - 0.5) * 0.12;
+          normalMap.xy += (hammered3 - 0.5) * 0.06;
           
           // Transform normal from tangent space to world space
           mat3 TBN = mat3(vTangent, vBitangent, vNormal);
@@ -1140,31 +1213,57 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
           
           // View and light calculations for PBR
           vec3 V = normalize(cameraPosition - vWorldPosition);
-          vec3 L = normalize(vec3(0.4, 0.6, 1.0)); // Directional light
-          vec3 H = normalize(L + V); // Half vector for Blinn-Phong
+          vec3 L = normalize(vec3(0.4, 0.6, 1.0)); // Main directional light
+          vec3 L2 = normalize(vec3(-0.3, 0.2, 0.8)); // Secondary light
+          vec3 H = normalize(L + V); // Half vector
           
-          // Adjust specular based on roughness
-          float adjustedSpecPower = mix(200.0, 10.0, roughness) * (specularPower / 90.0);
-          float spec = pow(max(dot(N, H), 0.0), adjustedSpecPower);
+          // Cook-Torrance BRDF
+          float NdotL = max(dot(N, L), 0.0);
+          float NdotV = max(dot(N, V), 0.0);
+          float NdotH = max(dot(N, H), 0.0);
+          float VdotH = max(dot(V, H), 0.0);
           
-          // Fresnel effect with metallic influence
-          float fresnel = pow(1.0 - max(dot(V, N), 0.0), 3.0) * (0.5 + metallic * 0.7);
+          // Calculate F0 (reflectance at normal incidence)
+          vec3 F0 = vec3(0.04);
+          F0 = mix(F0, albedo, metallic);
           
-          // Combine albedo with metallic workflow
-          vec3 goldColor = mix(albedo, albedo * 1.5, metallic);
+          // Calculate DFG terms
+          float D = distributionGGX(N, H, roughness);
+          vec3 F = fresnelSchlickRoughness(VdotH, F0, roughness);
+          float G = geometrySmith(N, V, L, roughness);
           
-          // Base PBR gold with specular and fresnel
-          vec3 gold = goldColor * (0.7 + 0.3 * goldIntensity) * body * ao
-                    + vec3(1.0, 0.95, 0.5) * (spec * (1.0 - roughness) + fresnel * metallic);
+          // Cook-Torrance specular
+          vec3 numerator = D * G * F;
+          float denominator = 4.0 * NdotV * NdotL + 0.001;
+          vec3 specular = numerator / denominator;
+          
+          // Energy conservation
+          vec3 kS = F;
+          vec3 kD = vec3(1.0) - kS;
+          kD *= 1.0 - metallic;
+          
+          // Final BRDF
+          vec3 gold = (kD * albedo / 3.14159265359 + specular) * NdotL * goldIntensity * body * ao;
+          
+          // Add secondary light contribution
+          vec3 H2 = normalize(L2 + V);
+          float NdotL2 = max(dot(N, L2), 0.0);
+          float D2 = distributionGGX(N, H2, roughness * 1.2);
+          vec3 secondary = albedo * 0.3 * NdotL2 + vec3(1.0, 0.9, 0.7) * D2 * 0.2;
+          gold += secondary * (1.0 - roughness) * ao;
           
           // === ANIMATED EFFECTS ON TOP OF PBR ===
           // Add original gold texture for additional detail
           gold *= mix(vec3(1.0), goldTex, 0.3);
           
-          // Anisotropic highlight (brushed metal effect)
-          float aniso = pow(abs(dot(vTangent, V)), 8.0) * 0.8 + 0.2;
-          vec3 anisoColor = vec3(1.2, 1.1, 0.8) * aniso * 0.15 * (1.0 - roughness);
-          gold += anisoColor;
+          // Enhanced anisotropic highlight (brushed metal effect)
+          vec3 T = normalize(vTangent - dot(vTangent, N) * N);
+          vec3 B = cross(N, T);
+          float TdotH = dot(T, H);
+          float BdotH = dot(B, H);
+          float aniso = exp(-2.0 * (TdotH * TdotH * 0.5 + BdotH * BdotH * 8.0) / (1.0 + NdotH));
+          vec3 anisoColor = vec3(1.3, 1.15, 0.85) * aniso * anisotropyStrength * (1.0 - roughness);
+          gold += anisoColor * NdotL;
           
           // Fine banding/flow perpendicular to crack
           float band1 = sin(vUv.x * 40.0 + vUv.y * 8.0) * 0.5 + 0.5;
@@ -1176,18 +1275,27 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
           albedo *= 0.97 + hammered2 * 0.06;
           gold *= mix(vec3(1.0), albedo, 0.2);
           
-          // Micro glints (sparkle effect) - increased intensity
-          float glint = smoothstep(0.96, 1.0, valueNoise(vUv * 120.0 + time * 4.0 + vPhaseOffset));
-          float glint2 = smoothstep(0.98, 1.0, valueNoise(vUv * 200.0 - time * 3.0));
-          gold += vec3(1.0, 0.95, 0.75) * glint * 0.15;
-          gold += vec3(1.1, 1.0, 0.8) * glint2 * 0.1;
+          // Enhanced micro glints using Perlin noise
+          float glint = smoothstep(0.94, 1.0, perlinNoise(vUv * 100.0 + time * 3.0 + vPhaseOffset));
+          float glint2 = smoothstep(0.97, 1.0, perlinNoise(vUv * 180.0 - time * 2.5));
+          float glint3 = smoothstep(0.99, 1.0, perlinNoise(vWorldPosition.xy * 50.0 + time));
+          vec3 glintColor = mix(vec3(1.0, 0.95, 0.75), vec3(1.2, 1.1, 0.9), metallic);
+          gold += glintColor * glint * 0.2 * (1.0 - roughness);
+          gold += glintColor * glint2 * 0.15;
+          gold += vec3(1.5, 1.4, 1.2) * glint3 * 0.25 * pow(1.0 - roughness, 2.0);
           
           // Lava pulse animation
           float pulse = smoothstep(0.08, 0.01, abs(fract(vUv.y + time * flowSpeed * 0.3) - 0.5));
           gold += vec3(1.4, 1.22, 0.23) * pulse * lavaGlow * 0.22;
           
-          // Output with gamma correction for realistic lighting
-          gl_FragColor = vec4(pow(gold, vec3(1.0/2.2)), 1.0);
+          // Tone mapping and gamma correction
+          gold = gold / (gold + vec3(1.0)); // Reinhard tone mapping
+          gold = pow(gold, vec3(1.0 / 2.2)); // Gamma correction
+          
+          // Ensure brightness is clamped for display
+          gold = min(gold, vec3(maxLuminance));
+          
+          gl_FragColor = vec4(gold, 1.0);
           
           /*
           
@@ -1259,6 +1367,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
       goldMaterial.uniforms.textureFlowSpeed.value = params.textureFlowSpeed
       goldMaterial.uniforms.specularPower.value = params.specularPower
       goldMaterial.uniforms.lateralMotion.value = params.lateralMotion
+      goldMaterial.uniforms.maxLuminance.value = params.maxLuminance || 2.0
+      goldMaterial.uniforms.fresnelPower.value = params.fresnelPower || 3.0
+      goldMaterial.uniforms.anisotropyStrength.value = params.anisotropyStrength || 0.5
     }
   }, [
     goldMaterial,
@@ -1274,6 +1385,9 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
     params.textureFlowSpeed,
     params.specularPower,
     params.lateralMotion,
+    params.maxLuminance,
+    params.fresnelPower,
+    params.anisotropyStrength,
   ])
 
   // Cleanup on unmount
@@ -1307,14 +1421,30 @@ function KintsugiMesh({ params, randomSeed }: { params: KintsugiParams; randomSe
   return (
     <group ref={groupRef}>
       {/* Slate background with clipping mask */}
-      <mesh position={[0, 0, 0]} renderOrder={1}>
-        <planeGeometry args={[4, 4]} />
+      <mesh 
+        position={[0, 0, 0]} 
+        renderOrder={1}
+        onUpdate={(mesh) => {
+          // Ensure UV2 coordinates for AO map
+          const geometry = mesh.geometry as THREE.BufferGeometry
+          if (!geometry.attributes.uv2) {
+            geometry.setAttribute('uv2', geometry.attributes.uv)
+          }
+        }}
+      >
+        <planeGeometry args={[4, 4, 32, 32]} />
         <meshStandardMaterial
           map={slateTexture}
           normalMap={slateNormalMap}
-          normalScale={new THREE.Vector2(1, 1)}
-          roughness={0.9}
-          metalness={0.1}
+          normalScale={new THREE.Vector2(1.5, 1.5)}
+          displacementMap={slateDisplacementMap}
+          displacementScale={0.05}
+          displacementBias={-0.025}
+          metalnessMap={slateSpecularMap}
+          roughness={0.85}
+          metalness={0.05}
+          aoMap={slateAOMap}
+          aoMapIntensity={1.2}
         />
       </mesh>
 
@@ -1453,6 +1583,9 @@ export default function KintsugiThreeJS() {
     textureFlowSpeed: 0.5,
     specularPower: 90.0,
     lateralMotion: 0.2,
+    maxLuminance: 2.0,
+    fresnelPower: 3.0,
+    anisotropyStrength: 0.5,
   })
 
   const updateParam = (key: keyof KintsugiParams) => (value: number) => {
@@ -1609,6 +1742,22 @@ export default function KintsugiThreeJS() {
             max={200}
             step={5}
           />
+          <ParamSlider
+            label="Fresnel Power"
+            value={params.fresnelPower || 3.0}
+            onChange={updateParam('fresnelPower')}
+            min={1}
+            max={5}
+            step={0.1}
+          />
+          <ParamSlider
+            label="Anisotropy"
+            value={params.anisotropyStrength || 0.5}
+            onChange={updateParam('anisotropyStrength')}
+            min={0}
+            max={1}
+            step={0.05}
+          />
         </VStack>
 
         <VStack align="stretch" gap={4}>
@@ -1689,6 +1838,14 @@ export default function KintsugiThreeJS() {
             onChange={updateParam('ambientIntensity')}
             min={0.3}
             max={1}
+          />
+          <ParamSlider
+            label="Max Luminance"
+            value={params.maxLuminance || 2.0}
+            onChange={updateParam('maxLuminance')}
+            min={1}
+            max={4}
+            step={0.1}
           />
         </VStack>
       </VStack>

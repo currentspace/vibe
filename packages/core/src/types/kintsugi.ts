@@ -22,4 +22,7 @@ export interface KintsugiParams {
   textureFlowSpeed: number
   specularPower: number
   lateralMotion: number
+  maxLuminance?: number
+  fresnelPower?: number
+  anisotropyStrength?: number
 }
