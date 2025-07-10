@@ -5,12 +5,14 @@
 export interface KintsugiParams {
   crackCount: number
   crackThickness: number
+  patternType: 'marble' | 'voronoi'
   goldIntensity: number
   goldShimmer: number
   goldFlowSpeed: number
   goldFlowAnimation: number
   crackCurviness: number
   branchProbability: number
+  branchSmoothness: number
   ambientIntensity: number
   bloomIntensity: number
   bloomThreshold: number
